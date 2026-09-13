@@ -1,0 +1,351 @@
+@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap");
+
+:root {
+  --bg: #070812;
+  --panel: #101323;
+  --text: #f4f7ff;
+  --muted: #9299b8;
+  --cyan: #00f5ff;
+  --purple: #9b5cff;
+  --pink: #ff3cac;
+  --border: rgba(255, 255, 255, 0.1);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 80% 10%, rgba(155, 92, 255, 0.18), transparent 30%),
+    radial-gradient(circle at 10% 40%, rgba(0, 245, 255, 0.1), transparent 28%),
+    var(--bg);
+  font-family: "Inter", sans-serif;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.12;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 45px 45px;
+  mask-image: linear-gradient(to bottom, black, transparent);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  border: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+.navbar {
+  width: min(1200px, 90%);
+  margin: auto;
+  padding: 28px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 30px;
+}
+
+.logo {
+  font-family: "Orbitron", sans-serif;
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.logo span {
+  color: var(--cyan);
+}
+
+.nav-links {
+  display: flex;
+  gap: 28px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.nav-links a {
+  transition: color 0.3s ease;
+}
+
+.nav-links a:hover {
+  color: var(--cyan);
+}
+
+.nav-button,
+.primary-button,
+.secondary-button {
+  padding: 13px 22px;
+  border-radius: 6px;
+  font-weight: 700;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease,
+    background 0.3s ease;
+}
+
+.nav-button,
+.primary-button {
+  color: #05060d;
+  background: var(--cyan);
+  box-shadow: 0 0 24px rgba(0, 245, 255, 0.25);
+}
+
+.nav-button:hover,
+.primary-button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 0 35px rgba(0, 245, 255, 0.6);
+}
+
+.secondary-button {
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border);
+}
+
+.secondary-button:hover {
+  border-color: var(--purple);
+  box-shadow: 0 0 25px rgba(155, 92, 255, 0.3);
+}
+
+.hero {
+  width: min(1200px, 90%);
+  min-height: 75vh;
+  margin: auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 50px;
+}
+
+.eyebrow {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  margin-bottom: 18px;
+}
+
+.hero h1 {
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(3rem, 7vw, 6.5rem);
+  line-height: 0.98;
+  letter-spacing: -3px;
+}
+
+.hero h1 span {
+  display: block;
+  color: transparent;
+  -webkit-text-stroke: 1px var(--cyan);
+  text-shadow: 0 0 30px rgba(0, 245, 255, 0.25);
+}
+
+.hero-description {
+  max-width: 520px;
+  margin: 28px 0;
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.hero-visual {
+  min-height: 430px;
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+
+.orb {
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 25%, white, var(--cyan) 8%, var(--purple) 45%, #11142b 70%);
+  box-shadow:
+    0 0 40px rgba(0, 245, 255, 0.6),
+    0 0 120px rgba(155, 92, 255, 0.45);
+  animation: float 5s ease-in-out infinite;
+}
+
+.orb-ring {
+  position: absolute;
+  width: 340px;
+  height: 120px;
+  border: 1px solid rgba(0, 245, 255, 0.6);
+  border-radius: 50%;
+  transform: rotate(-25deg);
+  animation: spin 12s linear infinite;
+}
+
+.ring-two {
+  width: 420px;
+  height: 160px;
+  border-color: rgba(255, 60, 172, 0.5);
+  transform: rotate(35deg);
+  animation-direction: reverse;
+}
+
+.visual-label {
+  position: absolute;
+  bottom: 30px;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 3px;
+}
+
+.section {
+  width: min(1200px, 90%);
+  margin: 100px auto;
+}
+
+.section h2 {
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  margin-bottom: 35px;
+}
+
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.game-card,
+.tournament-panel {
+  padding: 30px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.07),
+    rgba(255, 255, 255, 0.015)
+  );
+  backdrop-filter: blur(12px);
+  transition:
+    transform 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.game-card:hover {
+  transform: translateY(-8px);
+  border-color: var(--cyan);
+  box-shadow: 0 0 35px rgba(0, 245, 255, 0.15);
+}
+
+.game-number {
+  color: var(--pink);
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.8rem;
+}
+
+.game-card h3,
+.tournament-panel h3 {
+  margin: 35px 0 12px;
+  font-family: "Orbitron", sans-serif;
+}
+
+.game-card p,
+.tournament-panel p {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.tournament-panel {
+  border-color: rgba(155, 92, 255, 0.45);
+}
+
+.status-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #36ff8a;
+  box-shadow: 0 0 15px #36ff8a;
+}
+
+.tournament-panel .primary-button {
+  margin-top: 25px;
+}
+
+footer {
+  padding: 40px 5%;
+  color: var(--muted);
+  text-align: center;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-22px);
+  }
+}
+
+@keyframes spin {
+  from {
+    rotate: 0deg;
+  }
+
+  to {
+    rotate: 360deg;
+  }
+}
+
+@media (max-width: 800px) {
+  .navbar {
+    flex-wrap: wrap;
+  }
+
+  .nav-links {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .hero {
+    grid-template-columns: 1fr;
+    padding-top: 50px;
+  }
+
+  .hero-visual {
+    min-height: 350px;
+  }
+
+  .game-grid {
+    grid-template-columns: 1fr;
+  }
+}
