@@ -349,3 +349,533 @@ footer {
     grid-template-columns: 1fr;
   }
 }
+/* =========================================================
+   GAMEHUB — GAMES PAGE
+   ========================================================= */
+
+.games-hero {
+  min-height: 55vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  padding: 140px 8% 80px;
+}
+
+.games-hero::before {
+  content: "";
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(0, 245, 255, 0.16),
+    transparent 65%
+  );
+  filter: blur(20px);
+  pointer-events: none;
+}
+
+.games-hero-content {
+  max-width: 850px;
+  position: relative;
+  z-index: 2;
+}
+
+.games-hero h1 {
+  font-size: clamp(3rem, 7vw, 6rem);
+  line-height: 0.95;
+  margin: 20px 0;
+}
+
+.games-hero h1 span {
+  display: block;
+  color: var(--cyan);
+}
+
+.games-hero-description {
+  max-width: 650px;
+  margin: 0 auto;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.8;
+}
+
+
+/* =========================================================
+   GAME CATALOGUE
+   ========================================================= */
+
+.games-catalogue {
+  padding-top: 40px;
+}
+
+
+/* =========================================================
+   FILTER BUTTONS
+   ========================================================= */
+
+.game-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 35px 0;
+}
+
+.filter-button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.filter-button:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  transform: translateY(-2px);
+}
+
+.filter-button.active {
+  background: var(--cyan);
+  border-color: var(--cyan);
+  color: var(--bg);
+  font-weight: 700;
+}
+
+
+/* =========================================================
+   GAMES GRID
+   ========================================================= */
+
+.games-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  width: 100%;
+  margin-top: 25px;
+}
+
+
+/* =========================================================
+   GAME CARD
+   ========================================================= */
+
+.games-grid .dynamic-game-card {
+  min-height: 430px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+
+  border: 1px solid rgba(255, 255, 255, 0.1);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(16, 19, 35, 0.98),
+      rgba(7, 8, 18, 0.98)
+    );
+
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.25);
+
+  transition:
+    transform 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.games-grid .dynamic-game-card:hover {
+  transform: translateY(-8px);
+
+  border-color:
+    rgba(0, 245, 255, 0.5);
+
+  box-shadow:
+    0 25px 70px rgba(0, 0, 0, 0.4),
+    0 0 30px rgba(0, 245, 255, 0.08);
+}
+
+
+/* =========================================================
+   GAME IMAGE
+   ========================================================= */
+
+.games-grid .game-image {
+  width: 100%;
+  height: 190px;
+  flex-shrink: 0;
+
+  position: relative;
+  overflow: hidden;
+
+  background-size: cover;
+  background-position: center;
+}
+
+.games-grid .game-image::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+
+  background:
+    linear-gradient(
+      to bottom,
+      transparent 20%,
+      rgba(7, 8, 18, 0.9) 100%
+    );
+}
+
+
+/* =========================================================
+   GAME VISUALS
+   ========================================================= */
+
+.games-grid .cyber-strike {
+  background:
+    radial-gradient(
+      circle at 70% 30%,
+      rgba(0, 245, 255, 0.55),
+      transparent 35%
+    ),
+    linear-gradient(
+      135deg,
+      #061a2c,
+      #0a4b59,
+      #10152d
+    );
+}
+
+.games-grid .neon-rivals {
+  background:
+    radial-gradient(
+      circle at 30% 30%,
+      rgba(255, 60, 172, 0.5),
+      transparent 35%
+    ),
+    linear-gradient(
+      135deg,
+      #24092f,
+      #61105f,
+      #10152d
+    );
+}
+
+.games-grid .shadow-protocol {
+  background:
+    radial-gradient(
+      circle at 70% 35%,
+      rgba(155, 92, 255, 0.5),
+      transparent 35%
+    ),
+    linear-gradient(
+      135deg,
+      #100d2d,
+      #28205a,
+      #080b18
+    );
+}
+
+.games-grid .default-game {
+  background:
+    radial-gradient(
+      circle at 50% 30%,
+      rgba(0, 245, 255, 0.3),
+      transparent 40%
+    ),
+    linear-gradient(
+      135deg,
+      #111827,
+      #18243d
+    );
+}
+
+
+/* =========================================================
+   GAME CARD CONTENT
+   ========================================================= */
+
+.games-grid .game-card-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 24px;
+}
+
+.games-grid .game-category {
+  margin: 0 0 12px;
+
+  color: var(--cyan);
+
+  font-size: 0.72rem;
+  font-weight: 700;
+
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.games-grid .game-card-content h3 {
+  margin: 0 0 12px;
+
+  color: var(--text);
+
+  font-size: 1.55rem;
+  line-height: 1.15;
+}
+
+.games-grid .game-description {
+  margin: 0;
+
+  color: var(--muted);
+
+  font-size: 0.92rem;
+  line-height: 1.7;
+}
+
+
+/* =========================================================
+   VIEW GAME BUTTON
+   ========================================================= */
+
+.games-grid .card-button {
+  margin-top: auto;
+  width: 100%;
+
+  padding: 13px 18px;
+
+  border: 1px solid
+    rgba(0, 245, 255, 0.35);
+
+  border-radius: 10px;
+
+  background:
+    rgba(0, 245, 255, 0.06);
+
+  color: var(--cyan);
+
+  font-family: inherit;
+
+  font-size: 0.78rem;
+  font-weight: 700;
+
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+
+  cursor: pointer;
+
+  transition:
+    background 0.25s ease,
+    color 0.25s ease,
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.games-grid .card-button:hover {
+  background: var(--cyan);
+  color: var(--bg);
+
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 0 20px rgba(0, 245, 255, 0.3);
+}
+
+
+/* =========================================================
+   LOADING / EMPTY / ERROR
+   ========================================================= */
+
+.games-loading {
+  grid-column: 1 / -1;
+}
+
+.games-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--muted);
+}
+
+.games-error {
+  grid-column: 1 / -1;
+
+  text-align: center;
+  padding: 80px 20px;
+
+  border: 1px solid rgba(255, 100, 124, 0.2);
+  border-radius: 18px;
+
+  background: rgba(255, 100, 124, 0.04);
+}
+
+.games-error strong {
+  display: block;
+  color: #ff647c;
+  margin-bottom: 10px;
+}
+
+
+/* =========================================================
+   GAMEHUB NETWORK PANEL
+   ========================================================= */
+
+.games-network {
+  padding-top: 40px;
+}
+
+.network-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 40px;
+
+  padding: 45px;
+
+  border: 1px solid rgba(0, 245, 255, 0.15);
+  border-radius: 24px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(0, 245, 255, 0.06),
+      rgba(155, 92, 255, 0.04)
+    );
+}
+
+.network-panel h2 {
+  margin: 10px 0;
+}
+
+.network-panel h2 span {
+  color: var(--cyan);
+}
+
+.network-panel p {
+  color: var(--muted);
+  max-width: 600px;
+  line-height: 1.7;
+}
+
+.network-status {
+  min-width: 220px;
+
+  display: flex;
+  align-items: center;
+  gap: 14px;
+
+  padding: 18px 22px;
+
+  border: 1px solid rgba(72, 240, 163, 0.2);
+  border-radius: 14px;
+
+  background: rgba(72, 240, 163, 0.04);
+}
+
+.network-status strong {
+  display: block;
+
+  color: #48f0a3;
+
+  font-size: 0.8rem;
+  letter-spacing: 1px;
+}
+
+.network-status small {
+  display: block;
+
+  color: var(--muted);
+
+  margin-top: 5px;
+}
+
+.network-dot {
+  width: 10px;
+  height: 10px;
+
+  border-radius: 50%;
+
+  background: #48f0a3;
+
+  box-shadow:
+    0 0 10px #48f0a3,
+    0 0 20px rgba(72, 240, 163, 0.5);
+
+  animation: networkPulse 1.8s infinite;
+}
+
+@keyframes networkPulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.5;
+    transform: scale(0.75);
+  }
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 1000px) {
+
+  .games-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+}
+
+
+@media (max-width: 650px) {
+
+  .games-hero {
+    min-height: 50vh;
+    padding: 120px 6% 60px;
+  }
+
+  .games-hero h1 {
+    font-size: 3.2rem;
+  }
+
+  .games-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .games-grid .dynamic-game-card {
+    min-height: 400px;
+  }
+
+  .game-filters {
+    gap: 8px;
+  }
+
+  .filter-button {
+    padding: 9px 15px;
+  }
+
+  .network-panel {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 30px;
+  }
+
+  .network-status {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+}

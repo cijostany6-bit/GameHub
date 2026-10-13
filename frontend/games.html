@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>GameHub | Games</title>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <!-- Navigation -->
+  <header class="navbar">
+
+    <a href="index.html" class="logo">
+      GAME<span>HUB</span>
+    </a>
+
+    <nav class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="games.html" class="active">Games</a>
+      <a href="index.html#tournaments">Tournaments</a>
+      <a href="index.html#leaderboard">Leaderboard</a>
+    </nav>
+
+    <button class="nav-button">
+      Join Arena
+    </button>
+
+  </header>
+
+
+  <!-- Games Page -->
+  <main>
+
+    <!-- Page Hero -->
+    <section class="games-hero">
+
+      <div class="games-hero-content">
+
+        <div class="status-badge">
+          GAME DATABASE ONLINE
+        </div>
+
+        <p class="eyebrow">
+          ENTER THE GAME VAULT
+        </p>
+
+        <h1>
+          CHOOSE YOUR
+          <span>ARENA.</span>
+        </h1>
+
+        <p class="games-hero-description">
+          Explore the GameHub collection, discover new challenges,
+          and find the battlefield that matches your play style.
+        </p>
+
+      </div>
+
+    </section>
+
+
+    <!-- Game Catalogue -->
+    <section class="section games-catalogue">
+
+      <div class="section-heading">
+
+        <div>
+
+          <p class="eyebrow">
+            GAMEHUB CATALOGUE
+          </p>
+
+          <h2>
+            All Games
+          </h2>
+
+        </div>
+
+        <p>
+          Games are loaded dynamically from the GameHub backend
+          and AWS RDS database.
+        </p>
+
+      </div>
+
+
+      <!-- Category Filters -->
+      <div class="game-filters">
+
+        <button
+          class="filter-button active"
+          data-category="all">
+          ALL
+        </button>
+
+        <button
+          class="filter-button"
+          data-category="Action">
+          ACTION
+        </button>
+
+        <button
+          class="filter-button"
+          data-category="Racing">
+          RACING
+        </button>
+
+        <button
+          class="filter-button"
+          data-category="Strategy">
+          STRATEGY
+        </button>
+
+      </div>
+
+
+      <!-- Dynamic Games Grid -->
+      <div
+        class="games-grid"
+        id="games-grid">
+
+        <!--
+          Game cards will be created dynamically
+          using JavaScript and data from:
+          
+          GET /api/games
+        -->
+
+        <div class="games-loading">
+
+          <div class="loading-spinner"></div>
+
+          <p>
+            CONNECTING TO GAME DATABASE...
+          </p>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- GameHub Network -->
+    <section class="section games-network">
+
+      <div class="network-panel">
+
+        <div>
+
+          <p class="eyebrow">
+            GAMEHUB NETWORK
+          </p>
+
+          <h2>
+            YOUR NEXT BATTLE
+            <span>STARTS HERE.</span>
+          </h2>
+
+          <p>
+            Browse the catalogue, choose your game,
+            and prepare to enter the arena.
+          </p>
+
+        </div>
+
+        <div class="network-status">
+
+          <span class="network-dot"></span>
+
+          <div>
+
+            <strong>
+              SYSTEM ONLINE
+            </strong>
+
+            <small>
+              Game services operational
+            </small>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+
+  <!-- Footer -->
+  <footer class="footer">
+
+    <p>
+      © 2026 GameHub. Built for the next generation of gamers.
+    </p>
+
+    <p>
+      SYSTEM STATUS:
+      <span>ONLINE</span>
+    </p>
+
+  </footer>
+
+
+  <script src="script.js"></script>
+
+</body>
+
+</html>
