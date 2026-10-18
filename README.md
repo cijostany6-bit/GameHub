@@ -11,10 +11,9 @@ GameHub is a portfolio project that combines a futuristic gaming interface with 
 
 The project is being evolved into a production-style application: automated CI/CD, infrastructure as code on AWS, monitoring, and Kubernetes (local kind cluster + Argo CD).
 
-> **Status — Phase 1 complete (2026-10-18):** reproducible local foundation **+**
-> tested, linted, CI'd. `git clone && make bootstrap` gives a working stack;
-> **every push runs lint → tests with coverage gate → real-stack smoke test →
-> security scans** on GitHub Actions.
+> **Status — Phase 2 complete (2026-10-18):** tested, CI'd, and **game-y**.
+> Arcade UI with a live animated background, GDPR-clean self-hosted fonts,
+> 14 tests with an 80% coverage gate, and a 3-job CI pipeline on every push.
 
 ---
 
@@ -56,6 +55,18 @@ The project is being evolved into a production-style application: automated CI/C
      compose stack on the runner
   3. **security scans** — gitleaks (full history), Trivy (CRITICAL/HIGH), npm audit
 - Local equivalents: `make test` · `make lint` · `make coverage`
+
+### ✅ Completed (Phase 2 — game-y UI)
+
+- **Live animated background**: canvas starfield (3 parallax layers, pixel
+  stars), rising neon pixel particles, rare shooting stars — plus a scrolling
+  grid and a drifting neon orb. Zero JS dependencies, ~118 draw calls/frame
+- **GDPR-clean fonts**: Press Start 2P (arcade accents) + Chakra Petch
+  (headings/body) **self-hosted** as woff2 with OFL licenses in-repo — the
+  Google Fonts CDN import is gone, so **zero third-party requests** at load
+- **Accessibility**: `prefers-reduced-motion` visitors get a fully static page
+  (canvas is never even created)
+- Arcade styling on all interactive elements (PS2P buttons with press feel)
 
 ### 🚧 Planned
 
@@ -350,6 +361,8 @@ For the production deployment (Phase 4): secrets come from AWS Systems Manager P
 - Automated testing (unit + integration) with coverage gates
 - CI/CD pipelines (GitHub Actions): lint → test → build → security scan
 - Dependency and image security scanning (Trivy, npm audit, gitleaks)
+- GDPR-conscious frontend: self-hosted assets, zero third-party requests
+- Canvas-based UI animation with accessibility (reduced-motion) support
 - Git and GitHub workflows
 - Application troubleshooting
 
@@ -361,8 +374,8 @@ For the production deployment (Phase 4): secrets come from AWS Systems Manager P
 |---|---|---|
 | **0** | Reproducible local foundation (compose, seed, healthchecks, `make bootstrap`, smoke tests) | ✅ 2026-10-18 |
 | **1** | Automated tests + GitHub Actions CI (lint, coverage gate, Trivy, gitleaks) | ✅ 2026-10-18 |
-| **2** | Game-y UI: live animated background, self-hosted game fonts, arcade styling | ⏭️ next |
-| **3** | Real playable games — every catalogue entry opens a game | Planned |
+| **2** | Game-y UI: live animated background, self-hosted game fonts, arcade styling | ✅ 2026-10-18 |
+| **3** | Real playable games — every catalogue entry opens a game | ⏭️ next |
 | **4** | Auth & live: Cognito (sign-in gate), S3 + CloudFront, EC2 backend, CloudFormation + OIDC CD | Planned |
 | **5** | Observability: metrics, dashboards, alerts, runbooks, SLOs | Planned |
 | **6** | Local Kubernetes (kind) + Argo CD GitOps | Planned |
