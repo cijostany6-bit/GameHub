@@ -113,7 +113,16 @@ app.use((req, res) => {
     res.status(404).json({ error: "Not found" });
 });
 
-app.use((error, req, res, next) => { // eslint-disable-line no-unused-vars
+// Body-parser failures (malformed JSON) are client errors.
+app.use((error, req, res, next) => {
+    if (error.type === "entity.parse.failed") {
+        res.status(400).json({ error: "Invalid JSON body" });
+        return;
+    }
+    next(error);
+});
+
+app.use((error, req, res, _next) => {
     console.error(JSON.stringify({
         ts: new Date().toISOString(),
         level: "error",

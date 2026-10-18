@@ -1,0 +1,125 @@
+# =========================================================
+# GameHub — CI
+#
+# Job 1  test        lint + unit/integration tests + coverage gate
+#                     (MySQL as a service container)
+# Job 2  stack-smoke builds the REAL Docker images and runs the
+#                     full stack end-to-end on the runner
+# Job 3  security    gitleaks (history) + Trivy (fs) + npm audit
+# =========================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Lint & tests (Node 22, MySQL service)
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci_root_pw
+          MYSQL_DATABASE: gamehub
+          MYSQL_USER: gamehub
+          MYSQL_PASSWORD: gamehub_local_pw
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h127.0.0.1 -uroot -pci_root_pw --silent"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: "3306"
+      DB_USER: gamehub
+      DB_PASSWORD: gamehub_local_pw
+      DB_NAME: gamehub
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies (reproducible — npm ci)
+        working-directory: backend
+        run: npm ci
+
+      - name: Lint
+        working-directory: backend
+        run: npm run lint
+
+      - name: Load schema and seed data
+        run: mysql -h 127.0.0.1 -P 3306 -u gamehub -pgamehub_local_pw gamehub < db/init.sql
+
+      - name: Tests with coverage gate (80/80/80)
+        working-directory: backend
+        run: npm run test:coverage
+
+  stack-smoke:
+    name: Full-stack smoke test (Docker Compose)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build images and start the stack
+        run: docker compose up -d --build
+
+      - name: Wait for backend health, then smoke test
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/api/ready >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          ./scripts/smoke.sh
+
+      - name: Service logs on failure
+        if: failure()
+        run: docker compose logs --tail=200
+
+      - name: Teardown
+        if: always()
+        run: docker compose down -v
+
+  security:
+    name: Security scans
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # gitleaks reviews the FULL history
+
+      - name: Gitleaks — no secrets in history
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trivy — vulnerabilities and misconfigurations
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: npm audit — dependency vulnerabilities
+        working-directory: backend
+        run: |
+          npm ci
+          npm audit --audit-level=high

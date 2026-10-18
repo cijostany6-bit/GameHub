@@ -2,12 +2,19 @@
 
 ### A Futuristic Gaming Platform Built with AWS & DevOps
 
+[![CI](https://github.com/cijostany6-bit/GameHub/actions/workflows/ci.yml/badge.svg)](https://github.com/cijostany6-bit/GameHub/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![Tests](https://img.shields.io/badge/tests-14%20passing-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-%E2%89%A580%25%20gated-blue)
+
 GameHub is a portfolio project that combines a futuristic gaming interface with a containerized Node.js backend and a MySQL database — all runnable locally with one command. It demonstrates how frontend applications, backend APIs, container networking, reverse proxies, databases, tests and CI pipelines work together.
 
 The project is being evolved into a production-style application: automated CI/CD, infrastructure as code on AWS, monitoring, and Kubernetes (local kind cluster + Argo CD).
 
-> **Status — Phase 0 complete (2026-10-18):** reproducible local foundation.
-> `git clone && make bootstrap` gives a fully working, seeded, smoke-tested stack with **zero configuration**.
+> **Status — Phase 1 complete (2026-10-18):** reproducible local foundation **+**
+> tested, linted, CI'd. `git clone && make bootstrap` gives a working stack;
+> **every push runs lint → tests with coverage gate → real-stack smoke test →
+> security scans** on GitHub Actions.
 
 ---
 
@@ -33,15 +40,36 @@ The project is being evolved into a production-style application: automated CI/C
 - `make bootstrap` one-command workflow + **smoke test** (`scripts/smoke.sh`)
 - Git and GitHub repository setup
 
+### ✅ Completed (Phase 1 — tests & CI)
+
+- **14 automated tests** using Node's built-in `node:test` (zero extra test deps):
+  unit suite (runs anywhere, no DB) + integration suite against real MySQL
+  (skips loudly if no database is reachable)
+- Behavioural coverage of the paths that matter: liveness survives a database
+  outage while readiness returns 503, CORS refuses unknown origins, driver
+  errors never leak to clients, malformed JSON → 400
+- **Coverage gate**: ≥80% lines / branches / functions or CI fails
+- **ESLint** (flat config) as a build gate
+- **GitHub Actions CI — 3 jobs on every push/PR:**
+  1. lint + tests + coverage gate against a MySQL **service container**
+  2. **full-stack smoke test** — builds the real Docker images, runs the real
+     compose stack on the runner
+  3. **security scans** — gitleaks (full history), Trivy (CRITICAL/HIGH), npm audit
+- Local equivalents: `make test` · `make lint` · `make coverage`
+
 ### 🚧 Planned
 
-- **Phase 1** — automated tests (unit + integration) and GitHub Actions CI: lint, coverage gate, Trivy, gitleaks
-- **Phase 2** — game detail pages, real tournaments/leaderboards (DB-backed), user authentication
-- **Phase 3** — observability: metrics, dashboards, alerts, runbooks, SLOs
-- **Phase 4** — AWS via CloudFormation: ECR, static frontend on S3 + CloudFront, GitHub Actions OIDC deploy
-- **Phase 5** — local Kubernetes (kind) + Argo CD GitOps
-- **Phase 6** — security & GDPR hardening (data deletion flow, SBOM)
-- **Phase 7** — /learn documentation site, PDF export, load-test report
+- **Phase 2 — game-y UI overhaul**: live animated background, game fonts
+  (self-hosted for GDPR), arcade-style styling across all pages
+- **Phase 3 — real playable games**: every catalogue entry opens an actual
+  in-browser game
+- **Phase 4 — auth & live deployment**: Cognito user pool (sign-up/sign-in gate
+  before the app), static frontend on **S3 + CloudFront**, backend stack on
+  **EC2**, all as CloudFormation with GitHub Actions OIDC deploy
+- **Phase 5 — observability**: metrics, dashboards, alerts, runbooks, SLOs
+- **Phase 6 — local Kubernetes (kind) + Argo CD GitOps**
+- **Phase 7 — security & GDPR hardening** (data deletion flow, SBOM)
+- **Phase 8 — /learn documentation site, PDF export, load-test report**
 
 ---
 
@@ -319,6 +347,9 @@ For the production deployment (Phase 4): secrets come from AWS Systems Manager P
 - Connection pooling
 - Non-root container images, pinned base images, audited lockfiles
 - One-command bootstrap + smoke testing
+- Automated testing (unit + integration) with coverage gates
+- CI/CD pipelines (GitHub Actions): lint → test → build → security scan
+- Dependency and image security scanning (Trivy, npm audit, gitleaks)
 - Git and GitHub workflows
 - Application troubleshooting
 
@@ -328,14 +359,15 @@ For the production deployment (Phase 4): secrets come from AWS Systems Manager P
 
 | Phase | Focus | Status |
 |---|---|---|
-| **0** | Reproducible local foundation (compose, seed, healthchecks, `make bootstrap`, smoke tests) | ✅ **2026-10-18** |
-| **1** | Automated tests + GitHub Actions CI (lint, coverage gate, Trivy, gitleaks) | ⏭️ next |
-| **2** | Product depth: game detail pages, DB-backed tournaments/leaderboards, auth | Planned |
-| **3** | Observability: metrics, dashboards, alerts, runbooks, SLOs | Planned |
-| **4** | AWS via CloudFormation: ECR, S3 + CloudFront frontend, OIDC deploy (CD) | Planned |
-| **5** | Local Kubernetes (kind) + Argo CD GitOps | Planned |
-| **6** | Security & GDPR hardening (deletion flow, SBOM) | Planned |
-| **7** | /learn documentation site + PDF export + load-test report | Planned |
+| **0** | Reproducible local foundation (compose, seed, healthchecks, `make bootstrap`, smoke tests) | ✅ 2026-10-18 |
+| **1** | Automated tests + GitHub Actions CI (lint, coverage gate, Trivy, gitleaks) | ✅ 2026-10-18 |
+| **2** | Game-y UI: live animated background, self-hosted game fonts, arcade styling | ⏭️ next |
+| **3** | Real playable games — every catalogue entry opens a game | Planned |
+| **4** | Auth & live: Cognito (sign-in gate), S3 + CloudFront, EC2 backend, CloudFormation + OIDC CD | Planned |
+| **5** | Observability: metrics, dashboards, alerts, runbooks, SLOs | Planned |
+| **6** | Local Kubernetes (kind) + Argo CD GitOps | Planned |
+| **7** | Security & GDPR hardening (deletion flow, SBOM) | Planned |
+| **8** | /learn documentation site + PDF export + load-test report | Planned |
 
 ---
 
