@@ -7,7 +7,7 @@
 
 COMPOSE := $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
 
-.PHONY: bootstrap up down restart logs ps smoke db-reset clean help
+.PHONY: bootstrap up down restart logs ps smoke test lint coverage db-reset clean help
 
 bootstrap: up smoke ## Clone → run: build, start, wait for health, verify endpoints
 	@echo "✔ GameHub is up → http://localhost:8080"
@@ -29,6 +29,15 @@ ps: ## Show container status
 
 smoke: ## Verify the running stack end-to-end (used by CI later)
 	./scripts/smoke.sh
+
+test: ## Backend tests: unit + integration (integration skips if DB is down)
+	cd backend && if [ ! -d node_modules ]; then npm ci; fi && npm test
+
+lint: ## Static analysis on the backend
+	cd backend && if [ ! -d node_modules ]; then npm ci; fi && npm run lint
+
+coverage: ## Tests with the CI coverage gate (80% lines/branches/functions)
+	cd backend && if [ ! -d node_modules ]; then npm ci; fi && npm run test:coverage
 
 db-reset: ## Delete the DB volume and re-seed from db/init.sql
 	$(COMPOSE) down -v
