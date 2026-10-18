@@ -179,7 +179,7 @@ async function loadGames() {
 
         <small>
           Check Docker containers,
-          Nginx and RDS connectivity.
+          Nginx and database connectivity.
         </small>
 
       </div>

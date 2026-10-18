@@ -1,13 +1,28 @@
+# =========================================================
+# GameHub — local development stack
+#
+#   browser :8080 → frontend (nginx, serves UI + /api proxy)
+#                        → backend (Express, private network only)
+#                              → db (MySQL 8.4, local container)
+#
+# Every default below works out of the box: `make bootstrap`.
+# Override any value via environment variables or a local .env
+# file at the repo root (never commit it).
+# =========================================================
+
 services:
 
   frontend:
     build:
       context: .
       dockerfile: Dockerfile
+    image: gamehub-frontend:local
     ports:
       - "8080:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
     networks:
       - gamehub-network
 
@@ -15,12 +30,48 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    env_file:
-      - ./backend/.env
+    image: gamehub-backend:local
+    environment:
+      PORT: "3000"
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER:-gamehub}
+      DB_PASSWORD: ${DB_PASSWORD:-gamehub_local_pw}
+      DB_NAME: ${DB_NAME:-gamehub}
+      DB_SSL: ${DB_SSL:-false}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+    # NOTE: no host port is published — the API is reachable
+    # only through the nginx proxy on :8080 (and inside the
+    # Docker network). Use `docker-compose exec` for debugging.
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
     networks:
       - gamehub-network
+
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-gamehub_root_local}
+      MYSQL_DATABASE: ${DB_NAME:-gamehub}
+      MYSQL_USER: ${DB_USER:-gamehub}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-gamehub_local_pw}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - gamehub-network
+
+volumes:
+  mysql-data:
 
 networks:
   gamehub-network:

@@ -1,0 +1,17 @@
+# Build-context filter for the frontend image (context = repo root)
+.git
+.gitignore
+.github
+**/.DS_Store
+**/node_modules
+backend/.env
+.env
+.env.*
+*.md
+docs/
+learn/
+tests/
+scripts/
+db/
+docker-compose.yml
+Makefile
