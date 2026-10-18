@@ -1,4 +1,39 @@
-@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap");
+/* Fonts are SELF-HOSTED (OFL-licensed, files in fonts/) — no third-party
+   requests at runtime. This matters for GDPR in Germany: pulling fonts
+   from fonts.googleapis.com at page load discloses every visitor's IP
+   to Google, which German courts ruled unlawful without consent.
+   See fonts/OFL-*.txt for the licenses. */
+@font-face {
+  font-family: "Press Start 2P";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/press-start-2p-latin-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Chakra Petch";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/chakra-petch-latin-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Chakra Petch";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/chakra-petch-latin-600.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Chakra Petch";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/chakra-petch-latin-700.woff2") format("woff2");
+}
 
 :root {
   --bg: #070812;
@@ -28,7 +63,7 @@ body {
     radial-gradient(circle at 80% 10%, rgba(155, 92, 255, 0.18), transparent 30%),
     radial-gradient(circle at 10% 40%, rgba(0, 245, 255, 0.1), transparent 28%),
     var(--bg);
-  font-family: "Inter", sans-serif;
+  font-family: "Chakra Petch", "Segoe UI", sans-serif;
   overflow-x: hidden;
 }
 
@@ -67,10 +102,10 @@ button {
 }
 
 .logo {
-  font-family: "Orbitron", sans-serif;
-  font-size: 1.4rem;
-  font-weight: 800;
-  letter-spacing: 2px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.85rem;
+  font-weight: 400;
+  letter-spacing: 1px;
 }
 
 .logo span {
@@ -140,16 +175,17 @@ button {
 
 .eyebrow {
   color: var(--cyan);
-  font-family: "Orbitron", sans-serif;
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.6rem;
+  font-weight: 400;
   letter-spacing: 3px;
   margin-bottom: 18px;
 }
 
 .hero h1 {
-  font-family: "Orbitron", sans-serif;
+  font-family: "Chakra Petch", sans-serif;
   font-size: clamp(3rem, 7vw, 6.5rem);
+  font-weight: 700;
   line-height: 0.98;
   letter-spacing: -3px;
 }
@@ -215,9 +251,9 @@ button {
   position: absolute;
   bottom: 30px;
   color: var(--cyan);
-  font-family: "Orbitron", sans-serif;
-  font-size: 0.7rem;
-  letter-spacing: 3px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.55rem;
+  letter-spacing: 2px;
 }
 
 .section {
@@ -226,8 +262,9 @@ button {
 }
 
 .section h2 {
-  font-family: "Orbitron", sans-serif;
+  font-family: "Chakra Petch", sans-serif;
   font-size: clamp(2rem, 4vw, 3.5rem);
+  font-weight: 700;
   margin-bottom: 35px;
 }
 
@@ -262,14 +299,15 @@ button {
 
 .game-number {
   color: var(--pink);
-  font-family: "Orbitron", sans-serif;
-  font-size: 0.8rem;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.6rem;
 }
 
 .game-card h3,
 .tournament-panel h3 {
   margin: 35px 0 12px;
-  font-family: "Orbitron", sans-serif;
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
 }
 
 .game-card p,
@@ -878,4 +916,106 @@ footer {
     box-sizing: border-box;
   }
 
+}
+
+/* =========================================================
+   ARCADE UI + LIVE BACKGROUND (Phase 2)
+   ========================================================= */
+
+/* Press Start 2P on interactive elements — the arcade touch.
+   Kept small: PS2P is wide, so 10px keeps buttons compact. */
+.nav-button,
+.primary-button,
+.secondary-button {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.62rem;
+  font-weight: 400;
+  letter-spacing: 1px;
+}
+
+.filter-button {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.52rem;
+  font-weight: 400;
+}
+
+/* The grid floor is always scrolling upward — forward motion. */
+body::before {
+  animation: grid-scroll 12s linear infinite;
+}
+
+@keyframes grid-scroll {
+  from {
+    background-position: 0 0, 0 0;
+  }
+
+  to {
+    background-position: 0 -45px, 0 -45px;
+  }
+}
+
+/* One big soft neon orb that never sits still (behind content). */
+body::after {
+  content: "";
+  position: fixed;
+  top: -20vmax;
+  right: -15vmax;
+  width: 60vmax;
+  height: 60vmax;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(155, 92, 255, 0.16),
+    transparent 60%
+  );
+  filter: blur(40px);
+  z-index: -2;
+  pointer-events: none;
+  animation: orb-drift 26s ease-in-out infinite alternate;
+}
+
+@keyframes orb-drift {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate(-18vmax, 24vmax) scale(1.15);
+  }
+
+  to {
+    transform: translate(-42vmax, 10vmax) scale(0.9);
+  }
+}
+
+/* Canvas layer: starfield + pixel particles + shooting stars
+   (injected by bg.js; z-index keeps it behind the grid). */
+#bg-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -3;
+  pointer-events: none;
+}
+
+/* Arcade button press feel. */
+.nav-button:active,
+.primary-button:active,
+.secondary-button:active,
+.filter-button:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+/* Visitors who prefer reduced motion get a still page. */
+@media (prefers-reduced-motion: reduce) {
+
+  body::before,
+  body::after {
+    animation: none;
+  }
+
+  #bg-canvas {
+    display: none;
+  }
 }
