@@ -47,9 +47,15 @@ Parameters:
   SiteOrigin:
     Type: String
     Description: >
-      Public https origin of the frontend (the CloudFront distribution
-      domain, e.g. https://d1234.cloudfront.net) - becomes the API
-      CORS allow-list entry.
+      Public https origin of the frontend - becomes the API CORS allow-list
+      entry. This is the CloudFront distribution's own domain name
+      (https://d1234.cloudfront.net), which is a boot-time value in
+      UserData: the site's canonical name is a custom domain
+      (gamehub.worldofvpc.online), but both names are served by the same
+      distribution and the browser calls the API same-origin, so the
+      allow-list only matters for a cross-origin caller. Changing it
+      replaces the instance, which is why it is not churned for a value
+      with no functional effect (ADR-018).
 
   CloudFrontPrefixListId:
     Type: String

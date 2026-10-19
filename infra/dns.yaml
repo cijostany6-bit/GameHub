@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+# =========================================================
+# GameHub — the certificate the custom domain needs.
+#
+# This is a separate stack for one reason: a certificate used
+# by CloudFront must live in us-east-1, and everything else in
+# this project is in eu-central-1. One small stack in the
+# region that CloudFront demands is the standard shape, and it
+# keeps the certificate's own lifecycle (validation, renewal —
+# ACM renews automatically as long as the validation record
+# stays) away from the site stack.
+#
+# Validation is DNS, and the hosted zone id is passed in so
+# CloudFormation writes the validation record itself and waits
+# for the certificate to be issued. No email step, nothing to
+# remember to click.
+#
+# Cost: certificates are free. The validation CNAME is one DNS
+# record in a zone that already exists.
+# =========================================================
+
+Description: >
+  GameHub - ACM certificate for the custom domain (CloudFront
+  certificates must be in us-east-1).
+
+Parameters:
+  DomainName:
+    Type: String
+    Default: gamehub.worldofvpc.online
+    Description: The hostname the site is served on.
+
+  HostedZoneId:
+    Type: String
+    Description: >
+      The Route 53 hosted zone that contains DomainName. Given
+      to CloudFormation so it can create the DNS validation
+      record itself.
+
+Resources:
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref DomainName
+          HostedZoneId: !Ref HostedZoneId
+      # Renewals keep working as long as the validation record
+      # exists, so let ACM do it rather than re-issuing here.
+      CertificateTransparencyLoggingPreference: ENABLED
+
+Outputs:
+  CertificateArn:
+    Description: Pass this to the site stack.
+    Value: !Ref Certificate
+  DomainName:
+    Value: !Ref DomainName

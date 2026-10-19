@@ -24,8 +24,34 @@ Parameters:
     Default: 8080
     Description: Port nginx listens on inside the EC2 host.
 
+  CustomDomain:
+    Type: String
+    Default: ""
+    Description: >
+      Hostname to serve the site on, e.g. gamehub.example.com. Leave empty
+      to stay on the distribution's own domain name (which then keeps
+      CloudFront's default certificate).
+
+  CertificateArn:
+    Type: String
+    Default: ""
+    Description: >
+      ARN of an issued, us-east-1 ACM certificate covering CustomDomain.
+      CloudFront only accepts certificates from us-east-1 — the
+      gamehub-dns stack issues it there.
+
+  HostedZoneId:
+    Type: String
+    Default: ""
+    Description: Route 53 hosted zone that contains CustomDomain.
+
 Conditions:
   HasBackend: !Not [!Equals [!Ref BackendOriginDomain, ""]]
+
+  HasCustomDomain: !And
+    - !Not [!Equals [!Ref CustomDomain, ""]]
+    - !Not [!Equals [!Ref CertificateArn, ""]]
+    - !Not [!Equals [!Ref HostedZoneId, ""]]
 
 Resources:
 
@@ -65,6 +91,17 @@ Resources:
         HttpVersion: http2
         IPV6Enabled: true
         DefaultRootObject: index.html
+        # The human-facing name. Note what adding it costs: a custom
+        # certificate replaces CloudFront's default one, so the
+        # distribution's own domain name stops answering over HTTPS
+        # (and, because the viewer protocol policy redirects HTTP to
+        # HTTPS, stops answering usefully at all). That is why every
+        # reference in the repository was moved to this name in the
+        # same change — ADR-018.
+        Aliases: !If
+          - HasCustomDomain
+          - - !Ref CustomDomain
+          - !Ref AWS::NoValue
         Origins:
           - Id: site
             DomainName: !GetAtt SiteBucket.RegionalDomainName
@@ -119,8 +156,12 @@ Resources:
           - ErrorCode: 404
             ResponseCode: 200
             ResponsePagePath: /index.html
-        ViewerCertificate:
-          CloudFrontDefaultCertificate: true
+        ViewerCertificate: !If
+          - HasCustomDomain
+          - AcmCertificateArn: !Ref CertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
 
   # ---------------------------------------------------------------
   # Directory URLs, resolved at the edge.
@@ -191,6 +232,37 @@ Resources:
                   - arn:aws:cloudfront::${AWS::AccountId}:distribution/${DistId}
                   - DistId: !Ref Distribution
 
+  # ---------------------------------------------------------------
+  # The custom domain in DNS: alias records pointing at the
+  # distribution. Alias (not CNAME) means no charge for the queries
+  # and it works on the zone apex as well as a subdomain.
+  #
+  # Z2FDTNDATAQYW2 is CloudFront's fixed hosted-zone id — it is the
+  # same number for every distribution in every account, which is why
+  # it is written here rather than looked up.
+  # ---------------------------------------------------------------
+  DomainRecordV4:
+    Type: AWS::Route53::RecordSet
+    Condition: HasCustomDomain
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref CustomDomain
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt Distribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+
+  DomainRecordV6:
+    Type: AWS::Route53::RecordSet
+    Condition: HasCustomDomain
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref CustomDomain
+      Type: AAAA
+      AliasTarget:
+        DNSName: !GetAtt Distribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+
 Outputs:
   BucketName:
     Description: S3 bucket that receives the frontend artifact.
@@ -206,7 +278,10 @@ Outputs:
 
   SiteUrl:
     Description: Public site URL.
-    Value: !Sub https://${Distribution.DomainName}
+    Value: !If
+      - HasCustomDomain
+      - !Sub https://${CustomDomain}
+      - !Sub https://${Distribution.DomainName}
     Export:
       Name: !Sub gamehub-${Stage}-SiteUrl
 

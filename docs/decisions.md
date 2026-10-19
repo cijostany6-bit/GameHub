@@ -414,3 +414,42 @@ exchange for saving twelve lines); linking to `/learn/index.html` everywhere
 (works, and the docs' own links do use explicit `.html`, but `/learn/` is the
 URL a person types or bookmarks, and a landing page that renders the wrong site
 is a bug however it was linked).
+
+---
+
+## ADR-018
+
+**The site answers on a custom domain — and the CloudFront name keeps working**
+
+**Context.** The site was reachable only at `d2qf9zxehny6bk.cloudfront.net`. The
+zone `worldofvpc.online` already existed with another project on the apex, so
+`gamehub.worldofvpc.online` was the obvious subdomain. The expected cost was
+breaking the CloudFront name: the distribution redirects HTTP to HTTPS, so if a
+custom certificate replaced the default one, the old address would fail at the
+TLS handshake and any link to it would simply break.
+
+**Decision.** Serve `gamehub.worldofvpc.online`: an ACM certificate issued in
+us-east-1 by a small dedicated stack (`infra/dns.yaml`) and validated over DNS,
+an alias on the distribution, and IPv4/IPv6 alias records pointing at it. Prefer
+the custom name wherever a URL is written down — README, docs, the load-test
+commands and the deploy's smoke test — and treat the CloudFront name as an
+implementation detail.
+
+**Consequences.** The expectation was wrong in a pleasant way, and it was
+measured rather than assumed: CloudFront chooses the certificate by SNI, so the
+alias gets the certificate for `gamehub.worldofvpc.online` while the
+distribution's own name keeps getting `*.cloudfront.net`. **Both names answer
+200**, so no existing link breaks and the historical verification records stay
+exactly as they were written. The real cost is a third stack (in us-east-1,
+because CloudFront only accepts certificates from there), a hosted-zone id in
+the site stack, and the standing obligation to rename *everywhere at once* — a
+half-renamed project is worse than an unnamed one. Certificates are free; alias
+records are not charged for.
+
+**Rejected.** A second distribution for the custom name (a duplicate of the
+whole configuration — cache behaviours, the directory-index function, the
+origin access control — to avoid one alias); email-validated certificates (a
+human has to click a link, and the failure mode is an expired certificate in
+production); and rewriting the historical records that name the CloudFront
+domain, which would have falsified evidence that was accurate when it was
+captured.

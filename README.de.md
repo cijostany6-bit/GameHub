@@ -22,13 +22,13 @@ Das Projekt wird zu einer Anwendung im Produktionsstil weiterentwickelt: automat
 > `t3.micro`-Lasttest-Messung. Alles als CloudFormation beschrieben und per
 > schlüssellosem GitHub-OIDC deployt.
 
-**Live-Demo:** <https://d2qf9zxehny6bk.cloudfront.net> — lege ein Konto an
+**Live-Demo:** <https://gamehub.worldofvpc.online> — lege ein Konto an
 (E-Mail-Bestätigung), melde dich an und spiele. Die Landing Page ist öffentlich;
 der Katalog und die Spiele erfordern einen angemeldeten Spieler.
 
 **Dokumentation:** Die Schritt-für-Schritt-Dokumentation, die ADRs und das Runbook
 sind als statische Seite unter
-**<https://d2qf9zxehny6bk.cloudfront.net/learn/>** veröffentlicht, das komplette
+**<https://gamehub.worldofvpc.online/learn/>** veröffentlicht, das komplette
 Handbuch zusätzlich als druckbares PDF — jede Aussage darin ist auf einen Commit
 und einen CI-Lauf zurückführbar.
 
@@ -273,7 +273,7 @@ und einen CI-Lauf zurückführbar.
   Zeile als auch die Identität verschwunden sind — inklusive Aufräumen im
   Fehlerfall
 - **Architekturentscheidungen in einer Datei**: [`docs/decisions.md`](docs/decisions.md)
-  — 17 Entscheidungen in den Formen Kontext / Entscheidung / Konsequenzen /
+  — 18 Entscheidungen in den Formen Kontext / Entscheidung / Konsequenzen /
   verworfene Alternativen, jede mit Angabe dessen, was sie kostet
 
 ### 🚧 Nächstes (bewusst nicht begonnen)
@@ -528,24 +528,36 @@ verspricht — steht in
 
 ## ☁️ Auf AWS deployen
 
-Alles ist CloudFormation in [`infra/`](infra/) — fünf kleine Stacks, jeder mit
+Alles ist CloudFormation in [`infra/`](infra/) — sechs kleine Stacks, jeder mit
 einem einzigen Befehl. Stack-Outputs speisen den nächsten Stack, sodass es keine
 Tabelle mit IDs gibt, die man von Hand kopieren muss.
 
 ```bash
 export AWS_REGION=eu-central-1
+export ZONE_ID=<your route 53 hosted zone id>   # aws route53 list-hosted-zones
 
 # 1. Cognito user pool + app client
 aws cloudformation deploy --region "$AWS_REGION" \
   --stack-name gamehub-cognito --template-file infra/cognito.yaml \
   --parameter-overrides Stage=prod
 
-# 2. S3 + CloudFront (deployed first without an API origin)
+# 2. Certificate for the custom domain. CloudFront only accepts certificates
+#    from us-east-1, hence the separate stack and the separate region. DNS
+#    validation happens inside this stack — there is nothing to click.
+aws cloudformation deploy --region us-east-1 \
+  --stack-name gamehub-dns --template-file infra/dns.yaml \
+  --parameter-overrides DomainName=gamehub.worldofvpc.online HostedZoneId="$ZONE_ID"
+
+# 3. S3 + CloudFront (deployed first without an API origin)
 aws cloudformation deploy --region "$AWS_REGION" \
   --stack-name gamehub-site --template-file infra/site.yaml \
-  --parameter-overrides Stage=prod
+  --parameter-overrides \
+    Stage=prod \
+    CustomDomain=gamehub.worldofvpc.online \
+    CertificateArn=<gamehub-dns CertificateArn output> \
+    HostedZoneId="$ZONE_ID"
 
-# 3. EC2 host running the compose stack (needs the CloudFront domain)
+# 4. EC2 host running the compose stack (needs the CloudFront domain)
 aws cloudformation deploy --region "$AWS_REGION" \
   --stack-name gamehub-backend --template-file infra/backend.yaml \
   --parameter-overrides \
@@ -555,14 +567,22 @@ aws cloudformation deploy --region "$AWS_REGION" \
     SiteOrigin=<https://cloudfront domain> \
     DbPassword=<16+ chars> RootDbPassword=<16+ chars>
 
-# 4. Re-deploy the site stack with the API origin attached, then publish
+# 5. Re-deploy the site stack with the API origin attached, then publish.
+#    Repeat every parameter: CloudFormation silently uses the defaults for
+#    anything you leave out, and the defaults here would strip the custom
+#    domain back off.
 aws cloudformation deploy --region "$AWS_REGION" \
   --stack-name gamehub-site --template-file infra/site.yaml \
-  --parameter-overrides Stage=prod BackendOriginDomain=<ec2 public dns>
+  --parameter-overrides \
+    Stage=prod \
+    BackendOriginDomain=<ec2 public dns> \
+    CustomDomain=gamehub.worldofvpc.online \
+    CertificateArn=<gamehub-dns CertificateArn output> \
+    HostedZoneId="$ZONE_ID"
 
 AWS_REGION=$AWS_REGION ./scripts/deploy-frontend.sh
 
-# 5. Observability: log groups + retention, metrics from logs, the synthetic
+# 6. Observability: log groups + retention, metrics from logs, the synthetic
 #    check, eight alarms and the dashboard. AlarmEmail is optional — without it
 #    the SNS topic is still created and can be subscribed later (see the
 #    TopicArn output), it just has no subscriber yet.
@@ -572,7 +592,7 @@ aws cloudformation deploy --region "$AWS_REGION" \
   --parameter-overrides \
     Stage=prod \
     InstanceId=<ec2 instance id> \
-    SiteUrl=<https://cloudfront domain> \
+    SiteUrl=https://gamehub.worldofvpc.online \
     AlarmEmail=<you@example.com>
 ```
 

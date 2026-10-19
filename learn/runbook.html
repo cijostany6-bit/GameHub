@@ -34,7 +34,7 @@
     </nav>
     <div class="sidebar-foot">
       <a class="btn btn-primary" href="gamehub-guide.pdf">Download the PDF</a>
-      <a class="btn btn-ghost" href="https://d2qf9zxehny6bk.cloudfront.net">Live demo</a>
+      <a class="btn btn-ghost" href="https://gamehub.worldofvpc.online">Live demo</a>
       <a class="btn btn-ghost" href="https://github.com/cijostany6-bit/GameHub">GitHub repo</a>
     </div>
   </aside>
@@ -50,7 +50,10 @@
 <pre><code class="language-bash">export AWS_REGION=eu-central-1
 export INSTANCE_ID=$(aws ec2 describe-instances --region &quot;$AWS_REGION&quot; \
   --filters Name=tag:Name,Values=gamehub-prod* \
-  --query &quot;Reservations[].Instances[].InstanceId&quot; --output text)</code></pre>
+  --query &quot;Reservations[].Instances[].InstanceId&quot; --output text)
+# The site's canonical name. The distribution's own domain name also still
+# answers, with CloudFront's default certificate — see ADR-018.
+export SITE_URL=https://gamehub.worldofvpc.online</code></pre>
 <p>Run a command on the host (no keys, no SSH — IAM decides who may do this):</p>
 <pre><code class="language-bash">aws ssm send-command --region &quot;$AWS_REGION&quot; --instance-ids &quot;$INSTANCE_ID&quot; \
   --document-name AWS-RunShellScript \
@@ -64,8 +67,8 @@ export INSTANCE_ID=$(aws ec2 describe-instances --region &quot;$AWS_REGION&quot;
 <h2 id="1-gamehub-prod-synthetic-check-failed">1. <code>gamehub-prod-synthetic-check-failed</code></h2>
 <p><strong>Means:</strong> the external check could not get a <code>200</code> from the site or from <code>/api/health</code> within 10 seconds. This is the closest thing to &quot;users cannot use the site&quot;.</p>
 <p><strong>Confirm:</strong></p>
-<pre><code class="language-bash">curl -sS -o /dev/null -w '%{http_code} %{time_total}s\n' https://&lt;distribution&gt;/ 
-curl -sS -o /dev/null -w '%{http_code} %{time_total}s\n' https://&lt;distribution&gt;/api/health
+<pre><code class="language-bash">curl -sS -o /dev/null -w '%{http_code} %{time_total}s\n' $SITE_URL/ 
+curl -sS -o /dev/null -w '%{http_code} %{time_total}s\n' $SITE_URL/api/health
 aws lambda invoke --region &quot;$AWS_REGION&quot; \
   --function-name gamehub-prod-canary --log-type Tail /dev/stdout | tail -5</code></pre>
 <p><strong>Act:</strong></p>

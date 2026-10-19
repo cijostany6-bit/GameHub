@@ -190,11 +190,21 @@ jobs:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Resolve the distribution domain
+      # Prefer the custom domain: that is the name a player uses, so it is
+      # the name whose certificate and DNS should be part of a deploy's
+      # verdict. Fall back to the distribution's own domain name, which
+      # still answers (CloudFront serves the default certificate for it).
+      - name: Resolve the site URL
         run: |
           SITE_URL=$(aws cloudfront get-distribution \
             --id "$DISTRIBUTION_ID" \
-            --query "Distribution.DomainName" --output text)
+            --query "Distribution.DistributionConfig.Aliases.Items[0]" \
+            --output text)
+          if [ "$SITE_URL" = "None" ] || [ -z "$SITE_URL" ]; then
+            SITE_URL=$(aws cloudfront get-distribution \
+              --id "$DISTRIBUTION_ID" \
+              --query "Distribution.DomainName" --output text)
+          fi
           echo "SITE_URL=https://$SITE_URL" >> "$GITHUB_ENV"
           echo "Verifying $SITE_URL"
 

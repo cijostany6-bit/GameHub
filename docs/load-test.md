@@ -37,7 +37,9 @@ keep-alive, one client.
 
 ### Run A — anonymous (the edge and the gate)
 
-- **Target:** `https://d2qf9zxehny6bk.cloudfront.net`
+- **Target:** `https://d2qf9zxehny6bk.cloudfront.net` (the distribution's own
+  name; the site's canonical name is `gamehub.worldofvpc.online`, and both are
+  served — see ADR-018)
 - **Duration:** 19.17 s · **Throughput:** 104.32 req/s
 - **Responses as expected:** 100 % · **Unexpected:** 0 · **Connection errors:** 0
 
@@ -202,7 +204,7 @@ a paid tier.
 ## Reproduce it
 
 ```bash
-make load-test SITE_URL=https://d2qf9zxehny6bk.cloudfront.net REQUESTS=2000 CONCURRENCY=20
+make load-test SITE_URL=https://gamehub.worldofvpc.online REQUESTS=2000 CONCURRENCY=20
 
 # authenticated (the API then reaches MySQL); get an ID token first, e.g. with
 # scripts/verify-gdpr.sh's sign-in steps, then:
