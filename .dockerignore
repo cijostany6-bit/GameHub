@@ -9,7 +9,9 @@ backend/.env
 .env.*
 *.md
 docs/
-learn/
+# learn/ is NOT ignored: production uploads frontend/ + learn/ to the same
+# bucket, so the image must contain both for /learn/ to work locally and in
+# kind, exactly as it does behind CloudFront.
 tests/
 scripts/
 db/

@@ -64,7 +64,7 @@
 <hr />
 <h2 id="adr-003">ADR-003</h2>
 <p><strong>CloudFormation, not Terraform</strong></p>
-<p><strong>Context.</strong> Infrastructure as code for five stacks: Cognito, S3+CloudFront, the EC2 host, observability and the OIDC provider.</p>
+<p><strong>Context.</strong> Infrastructure as code for five stacks: Cognito, S3+CloudFront, the EC2 host, observability and the OIDC provider. (A sixth, <code>gamehub-dns</code>, was added later for the custom domain's certificate — it lives in us-east-1 because that is the only region CloudFront accepts certificates from; see ADR-018.)</p>
 <p><strong>Decision.</strong> Plain YAML CloudFormation templates in <code>infra/</code>, one per stack, wired with outputs.</p>
 <p><strong>Consequences.</strong> No state file to store, lock or lose, and no third-party provider to trust. The templates are verbose, cross-stack references are awkward, and <code>!If</code>/<code>!Sub</code> are not a programming language.</p>
 <p><strong>Rejected.</strong> Terraform/OpenTofu (an extra state backend to run and secure for five small stacks); CDK (a build step and a runtime for what is mostly declarative configuration).</p>

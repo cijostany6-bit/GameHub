@@ -69,7 +69,9 @@ SQLite (removes the realistic connection-pool and migration surface).
 **CloudFormation, not Terraform**
 
 **Context.** Infrastructure as code for five stacks: Cognito, S3+CloudFront, the
-EC2 host, observability and the OIDC provider.
+EC2 host, observability and the OIDC provider. (A sixth, `gamehub-dns`, was
+added later for the custom domain's certificate — it lives in us-east-1 because
+that is the only region CloudFront accepts certificates from; see ADR-018.)
 
 **Decision.** Plain YAML CloudFormation templates in `infra/`, one per stack,
 wired with outputs.

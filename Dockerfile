@@ -14,6 +14,11 @@ FROM nginx:stable-alpine
 RUN apk upgrade --no-cache
 
 COPY frontend/ /usr/share/nginx/html/
+# The documentation site, so the image is the whole site rather than half of
+# it. Production reaches /learn/ through CloudFront (which rewrites the
+# directory URL — see ADR-017); nginx resolves a directory to index.html on
+# its own, so the same URL works here and in kind with no rewrite.
+COPY learn/ /usr/share/nginx/html/learn/
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY frontend/nginx-log-format.conf /etc/nginx/conf.d/00-log-format.conf
 
