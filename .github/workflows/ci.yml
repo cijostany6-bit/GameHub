@@ -170,7 +170,7 @@ jobs:
           fetch-depth: 0   # gitleaks reviews the FULL history
 
       - name: Gitleaks — no secrets in history
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
