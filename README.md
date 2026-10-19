@@ -240,7 +240,10 @@ printable PDF, and every claim in it traceable to a commit and a CI run.
 - **Published with the app**: `build-frontend.sh` copies `learn/` into the
   deployable artifact, so the *same* CloudFront distribution serves the guide at
   **`/learn/`** — no second bucket, no second CDN, and no chance of the docs
-  being deleted by the root sync
+  being deleted by the root sync. `/learn/` and `/learn` are resolved by a
+  twelve-line CloudFront Function rather than by a folder object in the bucket
+  (ADR-017) — before it existed, `/learn/` answered 200 with the *game hub's*
+  home page
 - **A downloadable PDF**: `scripts/build-pdf.sh` prints the print-optimised
   `learn/guide.html` through the browser already on the machine (A4 `@page` CSS),
   producing `learn/gamehub-guide.pdf` for offline reading
@@ -258,7 +261,7 @@ printable PDF, and every claim in it traceable to a commit and a CI run.
   API, and asserts that both the row and the identity are gone — cleaning up
   after itself even when it fails
 - **Architecture decisions in one file**: [`docs/decisions.md`](docs/decisions.md)
-  — 16 decisions in context / decision / consequences / rejected form, each one
+  — 17 decisions in context / decision / consequences / rejected form, each one
   stating what it costs
 
 ### 🚧 Next (deliberately not started)

@@ -55,6 +55,12 @@ site shows.
 4. **A second run changes nothing.** The generator is deterministic: the same
    Markdown produces the same bytes, so re-running it never shows up as a
    spurious diff and CI could gate on it if the docs were generated there.
+5. **The success status was the bug.** `/learn/` answered **200 with the game
+   hub's landing page**, and the deploy's smoke test passed on it because it
+   asserted a string (`GameHub`) that both pages contain. The check is now
+   specific: it looks for `readme.html`, which is on the docs landing page and
+   nowhere else. A verification step is only as strong as its most specific
+   assertion.
 
 ## Concepts to understand cold
 
@@ -96,6 +102,23 @@ Two guards keep the published site truthful:
   regenerates the site and the PDF together, and the deploy publishes whatever
   is committed.
 
+### A directory URL is not a file
+
+`/learn/` first answered **200 with the game hub's landing page**. An S3 origin
+reached through an Origin Access Control is a REST origin: it has no notion of
+an index document, so a request for the key `learn/` is a 403 — and the
+distribution's custom error responses turn a 403 into `/index.html` with a 200.
+A wrong page wearing a success status is worse than an error, because nothing
+reports it; the deploy's own smoke test passed on it.
+
+The fix is a twelve-line CloudFront Function on the viewer request of the static
+cache behaviour: a URI ending in `/` gets `index.html` appended, and an
+extensionless last segment is treated as a directory so `/learn` works as well
+as `/learn/`. It returns `/api/*` untouched, so its correctness does not depend
+on cache-behaviour routing. Twelve URI cases are exercised locally before the
+function is deployed, and the reasoning — including why a real `learn/` object
+in the bucket was rejected — is ADR-017 in [`decisions.md`](decisions.md).
+
 ## Interview questions this unlocks
 
 1. *"You generated documentation from Markdown — why not use a static-site
@@ -106,3 +129,6 @@ Two guards keep the published site truthful:
    headless browser that already exists on the machine)
 4. *"Two independent websites live in one S3 bucket — how do you deploy one
    without deleting the other?"* (prefix-scoped sync; never `--delete` the root)
+5. *"Your health check passes and the page is wrong. How is that possible?"*
+   (a custom error response turning an origin 403 into a 200, and a smoke test
+   whose only assertion held for both pages)
