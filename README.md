@@ -258,7 +258,7 @@ printable PDF, and every claim in it traceable to a commit and a CI run.
   API, and asserts that both the row and the identity are gone — cleaning up
   after itself even when it fails
 - **Architecture decisions in one file**: [`docs/decisions.md`](docs/decisions.md)
-  — 15 decisions in context / decision / consequences / rejected form, each one
+  — 16 decisions in context / decision / consequences / rejected form, each one
   stating what it costs
 
 ### 🚧 Next (deliberately not started)

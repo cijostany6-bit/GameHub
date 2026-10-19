@@ -212,7 +212,17 @@ jobs:
             "$SITE_URL/api/health" || true
           exit 1
 
+      # The first version of this step asserted that an anonymous
+      # /api/games answered 200 with 12 games. It never passed: in
+      # production the catalogue is behind the auth gate and answers
+      # 401 — which is the gate *working*. The check was wrong, not
+      # the deployment. It now asserts the gate is on, then signs in
+      # and uses a real token, so it covers JWKS verification and the
+      # database as well as the edge.
       - name: Smoke test the deployed edge
+        env:
+          SMOKE_USER_EMAIL: ${{ secrets.SMOKE_USER_EMAIL }}
+          SMOKE_USER_PASSWORD: ${{ secrets.SMOKE_USER_PASSWORD }}
         run: |
           set -e
           fail() { echo "FAIL: $1"; exit 1; }
@@ -222,21 +232,53 @@ jobs:
           grep -qi "GameHub" /tmp/home.html || fail "home page has no GameHub markup"
           grep -qi "ENTER THE" /tmp/home.html || fail "home page is not the real hero"
 
-          # 2. The games catalogue is really served by the API (not a
-          #    cached error page): 12 playable entries.
-          curl -fsS "$SITE_URL/api/games" -o /tmp/games.json
-          COUNT=$(python3 -c "import json;print(len(json.load(open('/tmp/games.json'))))")
+          # 2. The documentation ships with the app, under /learn/.
+          curl -fsS "$SITE_URL/learn/" -o /tmp/learn.html
+          grep -qi "GameHub" /tmp/learn.html || fail "/learn/ is not the docs site"
+          curl -fsS "$SITE_URL/learn/gamehub-guide.pdf" -o /tmp/guide.pdf
+          [ "$(wc -c < /tmp/guide.pdf)" -gt 100000 ] || fail "the PDF is truncated"
+
+          # 3. The auth gate is on: without a token, protected routes
+          #    must be refused, not silently allowed.
+          for path in /api/games /api/me; do
+            STATUS=$(curl -sS -o /dev/null -w '%{http_code}' \
+              "$SITE_URL$path")
+            [ "$STATUS" = "401" ] \
+              || fail "expected 401 from $path unauthenticated, got $STATUS"
+          done
+
+          # 4. Sign in as the smoke identity, exactly as a browser does,
+          #    and exercise the routes a player needs.
+          [ -n "$SMOKE_USER_EMAIL" ] \
+            || fail "SMOKE_USER_EMAIL is not configured (a repository secret)"
+          ID_TOKEN=$(aws cognito-idp initiate-auth \
+            --client-id "$COGNITO_CLIENT_ID" \
+            --auth-flow USER_PASSWORD_AUTH \
+            --auth-parameters \
+            "USERNAME=$SMOKE_USER_EMAIL,PASSWORD=$SMOKE_USER_PASSWORD" \
+            --query "AuthenticationResult.IdToken" --output text)
+          [ -n "$ID_TOKEN" ] || fail "the smoke user could not sign in"
+
+          # 5. The catalogue is real data from the database: 12 entries.
+          curl -fsS -H "Authorization: Bearer $ID_TOKEN" \
+            "$SITE_URL/api/games" -o /tmp/games.json
+          COUNT=$(python3 -c \
+            "import json;print(len(json.load(open('/tmp/games.json'))))")
           [ "$COUNT" -eq 12 ] || fail "expected 12 games, got $COUNT"
 
-          # 3. The auth gate is actually on: an unauthenticated call to a
-          #    protected route must be refused, not silently allowed.
-          STATUS=$(curl -sS -o /dev/null -w '%{http_code}' "$SITE_URL/api/me")
-          [ "$STATUS" = "401" ] || fail "expected 401 from /api/me, got $STATUS"
+          # 6. The token identifies the right player.
+          curl -fsS -H "Authorization: Bearer $ID_TOKEN" \
+            "$SITE_URL/api/me" -o /tmp/me.json
+          python3 -c "import json,sys; \
+            sys.exit(0 if json.load(open('/tmp/me.json')).get('sub') else 1)" \
+            || fail "/api/me did not identify the signed-in user"
 
-          # 4. Every catalogue title resolves to a real game record.
+          # 7. Every catalogue title resolves to a real game record.
           for id in 1 6 12; do
-            curl -fsS "$SITE_URL/api/games/$id" -o /dev/null \
+            curl -fsS -H "Authorization: Bearer $ID_TOKEN" \
+              "$SITE_URL/api/games/$id" -o /dev/null \
               || fail "/api/games/$id is not served"
           done
 
-          echo "Post-deploy smoke test passed: site, catalogue, auth gate, game details."
+          echo "Post-deploy smoke test passed: edge, docs site, auth gate," \
+               "authenticated catalogue, game details."
