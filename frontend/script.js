@@ -2,6 +2,12 @@
 // GAMEHUB — FRONTEND SCRIPT
 // =========================================================
 
+// Sign-in gate: enforced only when a Cognito pool is configured
+// (local development runs in open mode — see backend boot log).
+if (window.GameHubAuth) {
+  window.GameHubAuth.requireAuthGuard();
+}
+
 
 // =========================================================
 // HOME PAGE — HERO BUTTONS
@@ -124,7 +130,7 @@ async function loadGames() {
     // Request game data through the Nginx
     // reverse proxy.
     const response =
-      await fetch("/api/games");
+      await (window.apiFetch || fetch)("/api/games");
 
 
     // Check HTTP response.

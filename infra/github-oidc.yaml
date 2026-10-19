@@ -1,0 +1,122 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  GameHub - GitHub Actions deploy role via OIDC. No long-lived AWS
+  keys anywhere: the workflow exchanges its GitHub-issued token for
+  short-lived credentials that can only publish the site and restart
+  the app host.
+
+Parameters:
+
+  Stage:
+    Type: String
+    Default: prod
+    AllowedPattern: "[a-z0-9-]+"
+
+  GitHubRepo:
+    Type: String
+    Default: cijostany6-bit/GameHub
+    Description: owner/repository allowed to assume the role.
+
+  SiteBucketName:
+    Type: String
+    Description: From the site stack output.
+
+  DistributionId:
+    Type: String
+    Description: From the site stack output.
+
+  InstanceId:
+    Type: String
+    Description: From the backend stack output.
+
+  CreateOidcProvider:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: >
+      Set to false when the account already has the GitHub OIDC
+      provider (only one per URL is allowed) and pass it via
+      existing OidcProviderArn instead.
+
+  ExistingOidcProviderArn:
+    Type: String
+    Default: ""
+    Description: Required only when CreateOidcProvider is false.
+
+Conditions:
+  CreateProvider: !Equals [!Ref CreateOidcProvider, "true"]
+
+Resources:
+
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub gamehub-${Stage}-github-deploy
+      Description: GitHub Actions deploy role for GameHub
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - CreateProvider
+                - !Ref GitHubOidcProvider
+                - !Ref ExistingOidcProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                # Only this repository. Tighten to ref:refs/heads/main
+                # if pull-request deploys are never wanted.
+                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubRepo}:*
+      Policies:
+        - PolicyName: deploy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # --- publish the static site ---
+              - Sid: ListSiteBucket
+                Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub arn:aws:s3:::${SiteBucketName}
+              - Sid: PublishSiteObjects
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub arn:aws:s3:::${SiteBucketName}/*
+              - Sid: InvalidateCache
+                Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                  - cloudfront:GetInvalidation
+                Resource: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${DistributionId}
+              # --- restart the app host over SSM ---
+              - Sid: DeployOverSsm
+                Effect: Allow
+                Action:
+                  - ssm:SendCommand
+                  - ssm:GetCommandInvocation
+                Resource:
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${InstanceId}
+                  - !Sub arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript
+      Tags:
+        - Key: Project
+          Value: GameHub
+
+Outputs:
+  DeployRoleArn:
+    Description: Set this as the AWS_DEPLOY_ROLE_ARN repository variable.
+    Value: !GetAtt DeployRole.Arn
+    Export:
+      Name: !Sub gamehub-${Stage}-DeployRoleArn

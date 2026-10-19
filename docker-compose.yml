@@ -40,6 +40,12 @@ services:
       DB_NAME: ${DB_NAME:-gamehub}
       DB_SSL: ${DB_SSL:-false}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      # Cognito sign-in gate. Empty by default: local development runs
+      # in open mode and the backend logs a loud auth_disabled warning.
+      # The deployed stack fills these in from its .env file.
+      COGNITO_REGION: ${COGNITO_REGION:-}
+      COGNITO_USER_POOL_ID: ${COGNITO_USER_POOL_ID:-}
+      COGNITO_CLIENT_ID: ${COGNITO_CLIENT_ID:-}
     # NOTE: no host port is published — the API is reachable
     # only through the nginx proxy on :8080 (and inside the
     # Docker network). Use `docker-compose exec` for debugging.

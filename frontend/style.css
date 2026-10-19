@@ -1244,3 +1244,121 @@ body::after {
   font-size: 0.78rem;
   letter-spacing: 1px;
 }
+
+
+/* =========================================================
+   AUTH PAGES — sign in / create account (Phase 4)
+   ========================================================= */
+
+.auth-main {
+  width: min(460px, 92%);
+  margin: 50px auto 100px;
+}
+
+.auth-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 38px 34px;
+  box-shadow: 0 0 40px rgba(0, 245, 255, 0.1);
+}
+
+.auth-panel h1 {
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.8rem, 5vw, 2.6rem);
+  margin: 10px 0 8px;
+}
+
+.auth-sub {
+  color: var(--muted);
+  margin-bottom: 26px;
+  line-height: 1.5;
+}
+
+.auth-notice {
+  border: 1px solid #ffd166;
+  color: #ffd166;
+  border-radius: 8px;
+  padding: 16px 18px;
+  margin-bottom: 22px;
+  line-height: 1.5;
+  font-size: 0.92rem;
+}
+
+.auth-notice .secondary-button {
+  display: inline-block;
+  margin-top: 14px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.auth-form[hidden] {
+  display: none;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.auth-field span {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.5rem;
+  color: var(--cyan);
+  letter-spacing: 2px;
+}
+
+.auth-field input {
+  background: #0b0d1a;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 13px 14px;
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auth-field input:focus {
+  outline: none;
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 3px rgba(0, 245, 255, 0.15);
+}
+
+.auth-error {
+  color: #ff5c7a;
+  border: 1px solid rgba(255, 92, 122, 0.5);
+  border-radius: 6px;
+  padding: 11px 14px;
+  font-size: 0.92rem;
+}
+
+.auth-error[hidden] {
+  display: none;
+}
+
+.auth-form .primary-button {
+  margin-top: 6px;
+}
+
+.auth-form .primary-button[disabled] {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.auth-alt {
+  margin-top: 22px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.auth-alt a {
+  color: var(--cyan);
+  border-bottom: 1px dashed var(--cyan);
+}
