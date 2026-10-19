@@ -56,10 +56,21 @@ fi
 # MYSQL_PWD: the password travels in the environment rather than on a
 # command line that `ps` can read and that mysql warns about every run.
 # --silent --skip-column-names: machine-readable output only.
+#
+# In compose mode the credentials are read FROM THE CONTAINER
+# (MYSQL_USER / MYSQL_PASSWORD / MYSQL_DATABASE), not from this
+# script's defaults. On the deployed host those values are generated
+# by CloudFormation and live in the host's .env; a project-local
+# default got the first deploy of this runner exactly one thing:
+# `ERROR 1045 (28000): Access denied for user 'gamehub'@'localhost'`.
+# Asking the container that already has the credentials removes the
+# possibility of the two disagreeing.
 mysql_cmd() {
     if [ "$MIGRATE_VIA" = "compose" ]; then
-        $COMPOSE exec -T -e MYSQL_PWD="$DB_PASSWORD" db \
-            mysql --silent --skip-column-names -u"$DB_USER" "$DB_NAME" "$@"
+        $COMPOSE exec -T db sh -c '
+            MYSQL_PWD="$MYSQL_PASSWORD" mysql --silent --skip-column-names \
+                -u"$MYSQL_USER" "$MYSQL_DATABASE" "$@"
+        ' sh "$@"
     else
         MYSQL_PWD="$DB_PASSWORD" mysql --silent --skip-column-names \
             -h "${DB_HOST:-127.0.0.1}" -P "$DB_PORT" \
