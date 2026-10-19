@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Step 4 — Real Auth + Live on AWS ✅ (2026-10-19) · GameHub /learn</title>
+<meta name="description" content="A Futuristic Gaming Platform Built with AWS &amp; DevOps" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<div class="layout">
+  <aside class="sidebar">
+    <a class="brand" href="index.html">GAME<span>HUB</span></a>
+    <p class="sidebar-sub">/learn</p>
+    <nav class="nav" aria-label="Learning documents">
+      <ul>
+        <li><a href="index.html"><span class="nav-kind">HOME</span>All documents</a></li>
+        <li><a href="readme.html"><span class="nav-kind">OVERVIEW</span>GameHub</a></li>
+        <li><a href="step-0-reproducible-foundation.html"><span class="nav-kind">STEP 0</span>Step 0 — Reproducible Local Foundation ✅ (2026-10-18)</a></li>
+        <li><a href="step-1-tests-and-ci.html"><span class="nav-kind">STEP 1</span>Step 1 — Automated Tests + GitHub Actions CI ✅ (2026-10-18)</a></li>
+        <li><a href="step-2-gamey-ui.html"><span class="nav-kind">STEP 2</span>Step 2 — Game-y UI: Live Background + Self-Hosted Arcade Fonts ✅ (2026-10-18)</a></li>
+        <li><a href="step-3-real-games.html"><span class="nav-kind">STEP 3</span>Step 3 — Real Playable Games ✅ (2026-10-19)</a></li>
+        <li><a href="step-4-auth-and-live.html" class="is-active"><span class="nav-kind">STEP 4</span>Step 4 — Real Auth + Live on AWS ✅ (2026-10-19)</a></li>
+        <li><a href="step-5-observability.html"><span class="nav-kind">STEP 5</span>Step 5 — Observability ✅ (2026-10-19)</a></li>
+        <li><a href="step-8-learn-site.html"><span class="nav-kind">STEP 8</span>Step 8 — /learn Documentation Site + PDF Export ✅ (2026-10-19)</a></li>
+        <li><a href="runbook.html"><span class="nav-kind">DOC</span>Runbook — GameHub (prod)</a></li>
+        <li><a href="slo.html"><span class="nav-kind">DOC</span>Service level objectives — GameHub</a></li>
+      </ul>
+    </nav>
+    <div class="sidebar-foot">
+      <a class="btn btn-primary" href="gamehub-guide.pdf">Download the PDF</a>
+      <a class="btn btn-ghost" href="https://d2qf9zxehny6bk.cloudfront.net">Live demo</a>
+      <a class="btn btn-ghost" href="https://github.com/cijostany6-bit/GameHub">GitHub repo</a>
+    </div>
+  </aside>
+  <main id="content" class="content">
+    <div class="doc-meta">
+      <span class="chip">STEP 4</span>
+      <span class="chip chip-source">docs/step-4-auth-and-live.md</span>
+    </div>
+    <article class="md">
+<h1 id="step-4-real-auth-live-on-aws-2026-10-19">Step 4 — Real Auth + Live on AWS ✅ (2026-10-19)</h1>
+<blockquote><p><strong>Verified by:</strong> 64 automated tests (31 backend + 33 frontend) · Cognito signing key pair exercised with real RSA signatures · live site served from CloudFront · <code>/api/*</code> answering through the CloudFront origin · a confirmed test user signing in and calling <code>/api/me</code> with a real ID token</p></blockquote>
+<h2 id="what-was-built">What was built</h2>
+<p>Players now sign up and sign in before they reach the games, and the whole thing runs on AWS as code — no console clicking, no SSH, no stored access keys.</p>
+<div class="table-wrap"><table><thead><tr><th>Piece</th><th>Implementation</th><th>Why not the alternative</th></tr></thead><tbody><tr><td><strong>Sign-in gate</strong> (<code>frontend/auth.js</code>)</td><td>Raw Cognito REST calls: <code>SignUp</code>, <code>ConfirmSignUp</code>, <code>InitiateAuth</code> (<code>USER_PASSWORD_AUTH</code>)</td><td><em>Amplify or the AWS SDK</em> → hundreds of KB of JavaScript for three endpoints, plus a bundler this project intentionally does not have</td></tr><tr><td><strong>Token verification</strong> (<code>backend/auth.js</code>)</td><td>RS256 checked against the pool JWKS with <code>node:crypto</code>; <code>iss</code>, <code>aud</code>/<code>client_id</code>, <code>exp</code>, <code>token_use</code> all validated</td><td><em><code>jsonwebtoken</code> + <code>jwks-rsa</code></em> → two dependencies to do what <code>createPublicKey({format:&quot;jwk&quot;})</code> already does; <em>trusting the frontend</em> → not security</td></tr><tr><td><strong>Enforcement model</strong></td><td>Middleware on <code>/api/*</code> except <code>/api/health</code> and <code>/api/ready</code>, active only when the pool is configured</td><td><em>Always-on</em> → local development and CI would break or need fake pools; <em>client-only guard</em> → trivially bypassed with <code>curl</code></td></tr><tr><td><strong>Frontend hosting</strong> (<code>infra/site.yaml</code>)</td><td>Private S3 bucket + CloudFront with Origin Access Control; <code>/api/*</code> behaviour with caching disabled</td><td><em>Public bucket</em> → everyone can read and write objects; <em>caching the API</em> → stale data and cross-user cache confusion</td></tr><tr><td><strong>API host</strong> (<code>infra/backend.yaml</code>)</td><td>One EC2 instance running the <strong>same</strong> <code>docker-compose.yml</code> as local development, with a 2 GB swap file</td><td><em>ECS/Fargate + RDS</em> → more moving parts and cost for a portfolio demo; <em>Lambda</em> → the MySQL container would have to go, which is the opposite of &quot;the deployed thing is the local thing&quot;</td></tr><tr><td><strong>Access model</strong></td><td>No SSH. Ingress on 8080 only from the AWS-managed CloudFront origin-facing prefix list; admin via SSM; IMDSv2 required</td><td><em><code>0.0.0.0/0</code> on 22 + a key pair</em> → the most common way a portfolio EC2 becomes someone else's crypto miner</td></tr><tr><td><strong>Deploys</strong> (<code>github-oidc.yaml</code> + <code>deploy.yml</code>)</td><td>GitHub OIDC → role scoped to this repo, bucket, distribution and instance; site published by <code>s3 sync</code>, API host rolled out by an SSM command</td><td><em>Long-lived IAM keys in GitHub secrets</em> → a permanent credential to leak; <em>rebuilding the host per deploy</em> → slower, and the DB volume lives there</td></tr></tbody></table></div>
+<h2 id="things-that-had-to-be-got-right">Things that had to be got right</h2>
+<ol><li><strong><code>AutoVerifiedAttributes</code> + email-only username.</strong> New pools make MFA mandatory unless you opt out, and users sign in with an email address rather than a username. Both are explicit in the template.</li><li><strong>Cognito emits <code>client_id</code> on access tokens and <code>aud</code> on ID tokens.</strong> The verifier accepts either, then rejects non-ID tokens outright — accepting an access token here would hand out a weaker identity contract.</li><li><strong>The probes must never 401.</strong> <code>/api/health</code> and <code>/api/ready</code> are exempt from the gate; an orchestrator that cannot reach its own health endpoint kills a healthy service.</li><li><strong>CloudFront needs a domain name, not an IP, for a custom origin.</strong> The backend stack outputs the instance's public DNS name while the elastic IP keeps it stable.</li><li><strong>A 1 GB instance running MySQL wants swap.</strong> The user-data script creates a 2 GB swap file before starting the stack — cheap insurance against the OOM killer during a <code>docker compose build</code>.</li><li><strong>The artifact carries its config, the repo does not.</strong> <code>config.js</code> ships with <code>authEnabled:false</code> for local development; <code>scripts/build-frontend.sh</code> writes the real pool ids into a git-ignored <code>build/</code> directory at deploy time.</li><li><strong>An edge invalidation is not a browser invalidation.</strong> After a deploy the browser still ran the previous <code>script.js</code> from its week-long cache, which made a fixed landing page look broken. The build now stamps every asset URL with the deploy version (<code>script.js?v=&lt;sha&gt;</code>) while HTML stays on a one-minute cache — the standard two-tier answer to &quot;how do users get the new version without a hard refresh?&quot;</li></ol>
+<h2 id="concepts-to-understand-cold">Concepts to understand cold</h2>
+<ul><li><strong>OIDC federation</strong>: how a GitHub-issued JWT becomes temporary AWS credentials, and why the <code>sub</code> condition is what stops any other repository from assuming your deploy role</li><li><strong>JWKS and key rotation</strong>: why the verifier fetches public keys instead of a shared secret, and why the result is cached</li><li><strong>Edge vs origin caching</strong>: why static assets get a week and HTML gets a minute, and why <code>/api/*</code> must not be cached at all</li><li><strong>Origin Access Control</strong>: keeping an S3 bucket private while still serving it through a CDN</li><li><strong>Blast-radius reduction</strong>: no SSH, SSM-only admin, prefix-list ingress, IMDSv2</li></ul>
+<h2 id="interview-questions-this-unlocks">Interview questions this unlocks</h2>
+<ol><li><em>&quot;How does your API know a request comes from a signed-in user?&quot;</em> (signature, issuer, audience, expiry — and why client-side checks are not the boundary)</li><li><em>&quot;How do your CI pipelines authenticate to AWS, and what happens if the repo is compromised?&quot;</em> (no keys; role scoped to repo, bucket, distribution, instance)</li><li><em>&quot;Why is the S3 bucket private, and how does the CDN still read it?&quot;</em> (OAC + bucket policy condition on the distribution ARN)</li><li><em>&quot;What is your EC2 host's attack surface?&quot;</em> (no SSH, one port, one prefix list, SSM only, IMDSv2)</li><li><em>&quot;How do you deploy config that differs per environment without committing it?&quot;</em> (generate at build time into a git-ignored directory)</li></ol>
+    </article>
+    <footer class="page-footer">
+      <p>GameHub /learn — generated from <code>README.md</code> and <code>docs/*.md</code> by
+      <code>scripts/build-learn.js</code>. Fonts are self-hosted (OFL); this site makes no third-party requests.</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

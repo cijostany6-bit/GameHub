@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Step 5 — Observability ✅ (2026-10-19) · GameHub /learn</title>
+<meta name="description" content="A Futuristic Gaming Platform Built with AWS &amp; DevOps" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<div class="layout">
+  <aside class="sidebar">
+    <a class="brand" href="index.html">GAME<span>HUB</span></a>
+    <p class="sidebar-sub">/learn</p>
+    <nav class="nav" aria-label="Learning documents">
+      <ul>
+        <li><a href="index.html"><span class="nav-kind">HOME</span>All documents</a></li>
+        <li><a href="readme.html"><span class="nav-kind">OVERVIEW</span>GameHub</a></li>
+        <li><a href="step-0-reproducible-foundation.html"><span class="nav-kind">STEP 0</span>Step 0 — Reproducible Local Foundation ✅ (2026-10-18)</a></li>
+        <li><a href="step-1-tests-and-ci.html"><span class="nav-kind">STEP 1</span>Step 1 — Automated Tests + GitHub Actions CI ✅ (2026-10-18)</a></li>
+        <li><a href="step-2-gamey-ui.html"><span class="nav-kind">STEP 2</span>Step 2 — Game-y UI: Live Background + Self-Hosted Arcade Fonts ✅ (2026-10-18)</a></li>
+        <li><a href="step-3-real-games.html"><span class="nav-kind">STEP 3</span>Step 3 — Real Playable Games ✅ (2026-10-19)</a></li>
+        <li><a href="step-4-auth-and-live.html"><span class="nav-kind">STEP 4</span>Step 4 — Real Auth + Live on AWS ✅ (2026-10-19)</a></li>
+        <li><a href="step-5-observability.html" class="is-active"><span class="nav-kind">STEP 5</span>Step 5 — Observability ✅ (2026-10-19)</a></li>
+        <li><a href="step-8-learn-site.html"><span class="nav-kind">STEP 8</span>Step 8 — /learn Documentation Site + PDF Export ✅ (2026-10-19)</a></li>
+        <li><a href="runbook.html"><span class="nav-kind">DOC</span>Runbook — GameHub (prod)</a></li>
+        <li><a href="slo.html"><span class="nav-kind">DOC</span>Service level objectives — GameHub</a></li>
+      </ul>
+    </nav>
+    <div class="sidebar-foot">
+      <a class="btn btn-primary" href="gamehub-guide.pdf">Download the PDF</a>
+      <a class="btn btn-ghost" href="https://d2qf9zxehny6bk.cloudfront.net">Live demo</a>
+      <a class="btn btn-ghost" href="https://github.com/cijostany6-bit/GameHub">GitHub repo</a>
+    </div>
+  </aside>
+  <main id="content" class="content">
+    <div class="doc-meta">
+      <span class="chip">STEP 5</span>
+      <span class="chip chip-source">docs/step-5-observability.md</span>
+    </div>
+    <article class="md">
+<h1 id="step-5-observability-2026-10-19">Step 5 — Observability ✅ (2026-10-19)</h1>
+<blockquote><p><strong>Verified by:</strong> the CloudWatch agent running on the live host, structured JSON nginx access logs arriving in <code>/gamehub/prod/nginx-access</code>, the synthetic canary invoked by hand and by schedule, alarms listed in <code>OK</code>/<code>INSUFFICIENT_DATA</code> with a real target, and one dashboard (<code>gamehub-prod</code>) whose log widgets return rows.</p></blockquote>
+<h2 id="what-was-built">What was built</h2>
+<p>A deployment you cannot see is a deployment you cannot run. This step makes the live system observable from the outside in and the inside out.</p>
+<div class="table-wrap"><table><thead><tr><th>Piece</th><th>Implementation</th><th>Why not the alternative</th></tr></thead><tbody><tr><td><strong>Structured access logs</strong> (<code>frontend/nginx.conf</code>)</td><td><code>log_format … escape=json</code> with <code>status</code>, <code>uri</code>, <code>request_time</code>, <code>upstream_time</code></td><td><em>Parsing the default combined log with regexes in a metric filter</em> → every rule becomes a cubicle joke; JSON metric filters are a first-class CloudWatch feature</td></tr><tr><td><strong>Shipping logs + host metrics</strong> (<code>infra/backend.yaml</code>)</td><td>CloudWatch agent installed by user-data, config file written inline, logs → CloudWatch Logs, <code>mem</code>/<code>disk</code>/<code>swap</code> → the <code>CWAgent</code> namespace</td><td><em>Container Insights / an APM vendor</em> → an agent you must pay per host for, when four metrics and two log files answer every question this project has</td></tr><tr><td><strong>Retention</strong> (<code>observability.yaml</code>)</td><td>Log groups created by template with 7-day retention</td><td><em>Letting the agent create them</em> → groups that never expire and quietly bill forever is the classic first-week-of-AWS mistake</td></tr><tr><td><strong>Metrics from logs</strong> (<code>AWS::Logs::MetricFilter</code>)</td><td><code>Requests</code>, <code>ServerErrors</code>, <code>RequestTimeSeconds</code>, <code>ApiRequestTimeSeconds</code> derived from the JSON log lines</td><td><em>Instrumenting the app with an EMF library</em> → more code in the request path for numbers nginx already knows</td></tr><tr><td><strong>External availability check</strong></td><td>EventBridge <code>rate(5 minutes)</code> → a 20-line Lambda that fetches <code>/</code> and <code>/api/health</code> and prints one JSON line per check; a metric filter turns that line into <code>SyntheticSuccess</code></td><td><em>CloudWatch Synthetics</em> → the managed canary costs about $10/month at a 5-minute interval, more than the whole project; printing a line and filtering it is free</td></tr><tr><td><strong>Alarms</strong> (<code>observability.yaml</code>)</td><td>8 alarms: availability (synthetic), 5xx count, API p99 latency, instance status, CPU, CPU credits, memory, disk — all publishing to one SNS topic</td><td><em>A single &quot;something is wrong&quot; alarm</em> → an alert nobody can act on is an alert everybody mutes</td></tr><tr><td><strong>One dashboard</strong></td><td>Availability, requests vs errors, latency percentiles, host pressure, and two live log tables (recent 5xx, backend log tail)</td><td><em>Per-service dashboards</em> → this service has one host; the dashboard fits on a screen</td></tr><tr><td><strong>Written response</strong> (<code>docs/slo.md</code>, <code>docs/runbook.md</code>)</td><td>Objectives with error budgets, measurement, and one runbook section per alarm containing the exact commands</td><td><em>&quot;Investigate and fix&quot;</em> → the runbook's value is that it was written before the incident, by someone who was not panicking</td></tr></tbody></table></div>
+<h2 id="things-that-had-to-be-got-right">Things that had to be got right</h2>
+<ol><li><strong><code>TreatMissingData</code> is a decision, not a default.</strong> For the host metrics, missing data is <code>notBreaching</code> — a stopped agent should not page anyone. For the synthetic check it is <code>breaching</code>: no data means the checker itself is broken, and an availability monitor that fails silently is worse than none.</li><li><strong>The agent must not create the log groups.</strong> If the agent starts first, the groups exist without retention and CloudFormation's <code>AWS::Logs::LogGroup</code> fails with <code>AlreadyExists</code> on the next deploy. The template owns the groups; the agent only writes into them.</li><li><strong>A metric filter is not a log parser you can debug in place.</strong> Pattern syntax errors produce an alarm that never fires — no warning, no log entry. The check that matters is a <strong>manual canary invocation followed by <code>get-metric-statistics</code></strong>, proving a data point exists, not that the template was accepted.</li><li>*<em>Metric </em>dimensions<em> must match exactly.</em>* <code>CWAgent</code> attaches <code>InstanceId</code>, and the disk plugin adds <code>path</code>, <code>device</code> and <code>fstype</code> on top. An alarm whose dimension set is one key short sits in <code>INSUFFICIENT_DATA</code> forever. The dimensions in this stack were read back from <code>list-metrics</code> on the running host, then written into the template — verified, not guessed.</li><li><strong>The synthetic check measures the path a user takes.</strong> It calls the CloudFront URL, not localhost — otherwise it proves the host is alive while the CDN is broken, which is exactly the failure it is meant to catch.</li><li><strong>Alarms without a subscriber are half a feature.</strong> The topic is created and exported; subscribing is one <code>aws sns subscribe</code> because the account's own contact address cannot be read by an alarm template. Documented in <code>docs/runbook.md</code> §8 rather than pretended away.</li><li><strong>Latency is measured where the user waits.</strong> <code>$request_time</code> includes the upstream Express call; <code>$upstream_time</code> alone would hide the time nginx spends. Having both on the log line is what lets the runbook split &quot;slow app&quot; from &quot;slow edge&quot; with one query.</li></ol>
+<h2 id="concepts-to-understand-cold">Concepts to understand cold</h2>
+<ul><li><strong>The four golden signals</strong> — latency, traffic, errors, saturation — and why this dashboard is organised as exactly those four plus availability</li><li><strong>Metric filters and JSON patterns</strong> — how a log line becomes a time series, including extracting a <em>numeric value</em> from a field (<code>$.request_time</code>)</li><li><strong>Extended statistics</strong> — why the <code>p99</code> alarm exists next to the average, and why an average latency is the metric that hides the outage</li><li><strong>Error budgets</strong> — the shift from &quot;uptime is good&quot; to &quot;the budget decides what we work on next&quot;, and what burning 3 h 39 m of a 30-day window means</li><li><strong>Pull vs push monitoring</strong> — why the synthetic check lives outside the system it watches, in a different service, in a different failure domain</li><li><strong>Retention and cost of observability</strong> — log ingestion is the subscription trap of cloud monitoring; retention is an architectural choice</li></ul>
+<h2 id="interview-questions-this-unlocks">Interview questions this unlocks</h2>
+<ol><li><em>&quot;How do you know your service is up right now?&quot;</em> (external synthetic check on the public URL, every 5 minutes, with <code>TreatMissingData: breaching</code> — and what that costs, which is nothing)</li><li><em>&quot;Walk me through an incident: the p99 latency alarm fired. What do you do?&quot;</em> (runbook §3: split <code>request_time</code> vs <code>upstream_time</code>, then CPU credits, then MySQL swap)</li><li><em>&quot;How do you get metrics out of a system you did not instrument?&quot;</em> (structured JSON logs → metric filters, versus adding an SDK or an EMF library)</li><li><em>&quot;Your alarm fired at 03:00. Was it a false positive, and how would you know?&quot;</em> (dimension sets, <code>TreatMissingData</code>, evaluation periods — and the manual canary invocation that proves the wiring)</li><li><em>&quot;What does your error budget buy you, and who decided the target?&quot;</em> (99.5 % on a single-AZ t3.micro is the honest ceiling; the budget decides whether the next sprint is features or reliability)</li></ol>
+    </article>
+    <footer class="page-footer">
+      <p>GameHub /learn — generated from <code>README.md</code> and <code>docs/*.md</code> by
+      <code>scripts/build-learn.js</code>. Fonts are self-hosted (OFL); this site makes no third-party requests.</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

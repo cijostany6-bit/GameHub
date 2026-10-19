@@ -1,10 +1,12 @@
 # Step 5 — Observability ✅ (2026-10-19)
 
 > **Verified by:** the CloudWatch agent running on the live host, structured
-> JSON nginx access logs arriving in `/gamehub/prod/nginx-access`, the synthetic
-> canary invoked by hand and by schedule, alarms listed in `OK`/`INSUFFICIENT_DATA`
-> with a real target, and one dashboard (`gamehub-prod`) whose log widgets return
-> rows.
+> JSON nginx access logs arriving in `/gamehub/prod/nginx-access`, container
+> stdout arriving in `/gamehub/prod/app`, `CWAgent` host metrics with the
+> dimensions read back from `list-metrics`, all eight alarms reporting a real
+> state (including the memory and disk alarms built from those dimensions), the
+> synthetic canary invoked by hand and by schedule, and one dashboard
+> (`gamehub-prod`) whose log widgets return rows.
 
 ## What was built
 
@@ -53,6 +55,29 @@ live system observable from the outside in and the inside out.
    upstream Express call; `$upstream_time` alone would hide the time nginx
    spends. Having both on the log line is what lets the runbook split "slow
    app" from "slow edge" with one query.
+8. **A metric filter publishes its default value for every event that does not
+   match.** The canary alarm was built on `Average` of a metric emitted from a
+   Lambda log group, and it sat in `ALARM` with an average of `0.4` while every
+   check was passing: the group also contains `START`, `END` and `REPORT`
+   lines, each of which contributed a zero. The fix is not a different
+   threshold, it is a different *statistic* — one JSON line per run, summed, so
+   the zeros add nothing. The same trap is why numeric-extraction filters
+   (`$.request_time`) must only be pointed at log groups where every event
+   matches; the nginx group qualifies because only `/api/*` traffic reaches the
+   origin, and the S3-served page requests never enter it.
+9. **The agent has to be root to read Docker's container logs.** `/var/lib/docker/containers/*/*-json.log` is `0640 root:root` inside a `0710` directory.
+   Running the agent as its own `cwagent` user collected host metrics perfectly
+   and shipped *nothing* from the containers — a silent half-failure, because
+   the metrics half looked healthy. The log group stayed empty until
+   `run_as_user` was set to `root`, with the reason written next to it.
+10. **A policy that is only in the template does not exist on a running host.**
+   The instance role gained `CloudWatchAgentServerPolicy` in the template, but
+   the live host was created before that, so the agent started and was
+   immediately refused with `AccessDeniedException: ... not authorized to
+   perform: logs:PutLogEvents`. IaC is a description of the desired state; the
+   running instance remains the old state until it is redeployed or the change
+   is applied. (Attaching the policy by hand made reality match the template
+   again — the template was already correct.)
 
 ## Concepts to understand cold
 

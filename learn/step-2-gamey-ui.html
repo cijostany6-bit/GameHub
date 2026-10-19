@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Step 2 — Game-y UI: Live Background + Self-Hosted Arcade Fonts ✅ (2026-10-18) · GameHub /learn</title>
+<meta name="description" content="A Futuristic Gaming Platform Built with AWS &amp; DevOps" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<div class="layout">
+  <aside class="sidebar">
+    <a class="brand" href="index.html">GAME<span>HUB</span></a>
+    <p class="sidebar-sub">/learn</p>
+    <nav class="nav" aria-label="Learning documents">
+      <ul>
+        <li><a href="index.html"><span class="nav-kind">HOME</span>All documents</a></li>
+        <li><a href="readme.html"><span class="nav-kind">OVERVIEW</span>GameHub</a></li>
+        <li><a href="step-0-reproducible-foundation.html"><span class="nav-kind">STEP 0</span>Step 0 — Reproducible Local Foundation ✅ (2026-10-18)</a></li>
+        <li><a href="step-1-tests-and-ci.html"><span class="nav-kind">STEP 1</span>Step 1 — Automated Tests + GitHub Actions CI ✅ (2026-10-18)</a></li>
+        <li><a href="step-2-gamey-ui.html" class="is-active"><span class="nav-kind">STEP 2</span>Step 2 — Game-y UI: Live Background + Self-Hosted Arcade Fonts ✅ (2026-10-18)</a></li>
+        <li><a href="step-3-real-games.html"><span class="nav-kind">STEP 3</span>Step 3 — Real Playable Games ✅ (2026-10-19)</a></li>
+        <li><a href="step-4-auth-and-live.html"><span class="nav-kind">STEP 4</span>Step 4 — Real Auth + Live on AWS ✅ (2026-10-19)</a></li>
+        <li><a href="step-5-observability.html"><span class="nav-kind">STEP 5</span>Step 5 — Observability ✅ (2026-10-19)</a></li>
+        <li><a href="step-8-learn-site.html"><span class="nav-kind">STEP 8</span>Step 8 — /learn Documentation Site + PDF Export ✅ (2026-10-19)</a></li>
+        <li><a href="runbook.html"><span class="nav-kind">DOC</span>Runbook — GameHub (prod)</a></li>
+        <li><a href="slo.html"><span class="nav-kind">DOC</span>Service level objectives — GameHub</a></li>
+      </ul>
+    </nav>
+    <div class="sidebar-foot">
+      <a class="btn btn-primary" href="gamehub-guide.pdf">Download the PDF</a>
+      <a class="btn btn-ghost" href="https://d2qf9zxehny6bk.cloudfront.net">Live demo</a>
+      <a class="btn btn-ghost" href="https://github.com/cijostany6-bit/GameHub">GitHub repo</a>
+    </div>
+  </aside>
+  <main id="content" class="content">
+    <div class="doc-meta">
+      <span class="chip">STEP 2</span>
+      <span class="chip chip-source">docs/step-2-gamey-ui.md</span>
+    </div>
+    <article class="md">
+<h1 id="step-2-game-y-ui-live-background-self-hosted-arcade-fonts-2026-10-18">Step 2 — Game-y UI: Live Background + Self-Hosted Arcade Fonts ✅ (2026-10-18)</h1>
+<blockquote><p><strong>Verified by:</strong> browser inspection (0 third-party requests, all three font faces active, canvas layer present) · <code>bg.js</code> render logic executed against a stubbed DOM (118 draw calls/frame; zero frames under <code>prefers-reduced-motion</code>) · <code>make smoke</code> 5/5 · CI full-stack job rebuilds the immutable frontend image</p></blockquote>
+<h2 id="what-was-built">What was built</h2>
+<div class="table-wrap"><table><thead><tr><th>Layer</th><th>Implementation</th><th>Why this and not the alternative</th></tr></thead><tbody><tr><td><strong>Fonts</strong></td><td>Press Start 2P (arcade accents) + Chakra Petch (headings/body), <strong>self-hosted woff2</strong> with OFL licenses in-repo</td><td><em>Google Fonts CDN</em> (what existed — an <code>@import</code> in <code>style.css</code>) → every visitor's IP is disclosed to Google on page load; German courts ruled this unlawful without consent (GDPR/§25 TTDSG). Kills Lighthouse third-party requests too</td></tr><tr><td><strong>Live background</strong></td><td>One <code>&lt;canvas&gt;</code>: 3-layer parallax starfield (pixel squares), rising neon pixel particles, rare shooting stars — ~118 draw calls/frame, zero dependencies</td><td><em>CSS-only gradients</em> (what existed — static) → user explicitly asked for a moving, &quot;games time&quot; background; <em>a particle library</em> → supply-chain weight for 150 lines of canvas we control</td></tr><tr><td><strong>Always-moving layers</strong></td><td>Grid scrolls upward (CSS <code>background-position</code> keyframes), one blurred neon orb drifts (<code>body::after</code>, fixed layer)</td><td>Cheap GPU-friendly transforms; content stays above (negative z-index layers)</td></tr><tr><td><strong>Accessibility</strong></td><td><code>prefers-reduced-motion</code>: canvas never created, grid/orb animations off</td><td>A moving background must not violate user motion preferences</td></tr><tr><td><strong>Arcade controls</strong></td><td>Press Start 2P on buttons/filters/logo/badges (kept ≤10px — the font is wide), Chakra Petch 700 on headings</td><td>Full-page Press Start 2P would destroy readability and overflow cards</td></tr></tbody></table></div>
+<h2 id="the-bugs-we-hit">The bugs we hit</h2>
+<ol><li><strong>The edited CSS never appeared in the browser while <code>curl</code> showed it served.</strong> Root cause: <code>Last-Modified: Sep 16</code> on the old file gave the browser <em>heuristic freshness</em> (10% of file age ≈ 3 days) — it never revalidated. Lesson (and production truth): the frontend ships as an <strong>immutable Docker image</strong>, so any UI change requires <code>docker-compose build frontend</code> — bind-mounting for &quot;quick edits&quot; would fork local behaviour away from production.</li><li><strong>Canvas &quot;wasn't animating&quot; in tooling.</strong> Root cause: <code>requestAnimationFrame</code> is paused in hidden windows. The render loop was verified by executing <code>bg.js</code> against a stubbed DOM in Node instead — an executable proof that doesn't depend on a visible desktop.</li></ol>
+<h2 id="concepts-to-understand-cold">Concepts to understand cold</h2>
+<ul><li><strong>GDPR and third-party assets</strong>: why self-hosting fonts is a legal requirement in Germany, not a preference — and why <code>font-display: swap</code> keeps LCP intact</li><li><strong>Heuristic caching</strong>: no <code>Cache-Control</code> header → browser derives freshness from <code>Last-Modified</code> age; the debugging workflow when &quot;my change isn't there&quot;</li><li><strong>Immutable artifacts</strong>: same image in dev, CI, and prod — changes mean a rebuild, and that's the point</li><li><strong>Canvas vs CSS</strong> for continuous animation: when <code>requestAnimationFrame</code> wins (many moving objects) and when transforms/keyframes win (few large shapes)</li></ul>
+<h2 id="interview-questions-this-unlocks">Interview questions this unlocks</h2>
+<ol><li><em>&quot;A style change works in curl but not in the browser — walk me through how you'd diagnose it.&quot;</em></li><li><em>&quot;Your Lighthouse audit flags fonts.googleapis.com — is that a performance or a compliance problem in Germany? How do you fix both?&quot;</em></li><li><em>&quot;How do you make a continuously animated background accessible and battery-friendly?&quot;</em></li><li><em>&quot;Why can't developers just edit files inside the running container?&quot;</em></li></ol>
+    </article>
+    <footer class="page-footer">
+      <p>GameHub /learn — generated from <code>README.md</code> and <code>docs/*.md</code> by
+      <code>scripts/build-learn.js</code>. Fonts are self-hosted (OFL); this site makes no third-party requests.</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

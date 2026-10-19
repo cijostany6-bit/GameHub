@@ -77,6 +77,13 @@ Resources:
 
   # ---------------------------------------------------------------
   # Metrics derived from the structured (JSON) nginx access log.
+  #
+  # No DefaultValue on any of these, deliberately: a metric filter with
+  # a default emits that value for log events that do NOT match, so
+  # every 200 response would add a 0 to the latency series and drag the
+  # p99 down. Absent data is the honest representation of "no matching
+  # requests", and the alarms are configured to treat that as
+  # notBreaching where it matters.
   # ---------------------------------------------------------------
   RequestCountMetric:
     Type: AWS::Logs::MetricFilter
@@ -87,7 +94,6 @@ Resources:
         - MetricNamespace: !Sub GameHub/${Stage}
           MetricName: Requests
           MetricValue: "1"
-          DefaultValue: 0
 
   ServerErrorMetric:
     Type: AWS::Logs::MetricFilter
@@ -98,7 +104,6 @@ Resources:
         - MetricNamespace: !Sub GameHub/${Stage}
           MetricName: ServerErrors
           MetricValue: "1"
-          DefaultValue: 0
 
   LatencyMetric:
     Type: AWS::Logs::MetricFilter
@@ -110,7 +115,6 @@ Resources:
           MetricName: RequestTimeSeconds
           MetricValue: $.request_time
           Unit: Seconds
-          DefaultValue: 0
 
   ApiLatencyMetric:
     Type: AWS::Logs::MetricFilter
@@ -122,7 +126,6 @@ Resources:
           MetricName: ApiRequestTimeSeconds
           MetricValue: $.request_time
           Unit: Seconds
-          DefaultValue: 0
 
   # ---------------------------------------------------------------
   # Synthetic availability check: EventBridge -> Lambda every 5 min.
@@ -173,7 +176,12 @@ Resources:
             const https = require("node:https");
 
             // Two public checks per run: the page and the liveness probe.
-            // One JSON line per check, parsed by a CloudWatch metric filter.
+            // Exactly ONE JSON line per run, on purpose. CloudWatch emits
+            // the filter's default value (0) for every log event that does
+            // not match the pattern — including Lambda's own START/END/REPORT
+            // lines — so an Average over this log group is diluted by those
+            // zeros. One line per run plus a Sum in the alarm sidesteps that
+            // entirely: see docs/step-5-observability.md.
             function check(url) {
               return new Promise((resolve) => {
                 const started = Date.now();
@@ -203,18 +211,19 @@ Resources:
 
               const results = {};
               for (const [name, url] of Object.entries(checks)) {
-                const outcome = await check(url);
-                results[name] = outcome;
-                console.log(JSON.stringify({
-                  check: name,
-                  url: url,
-                  ok: outcome.ok,
-                  ms: outcome.ms,
-                  code: outcome.code
-                }));
+                results[name] = await check(url);
               }
 
-              return results;
+              const ok = results.site.ok === 1 && results.health.ok === 1 ? 1 : 0;
+              const line = {
+                check: "gamehub",
+                ok: ok,
+                ms: results.site.ms + results.health.ms,
+                site: results.site.code,
+                health: results.health.code
+              };
+              console.log(JSON.stringify(line));
+              return { results: results, ok: ok };
             };
           - SiteUrl: !Ref SiteUrl
 
@@ -237,28 +246,17 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt CanaryRule.Arn
 
+  # Exactly one JSON line per run → exactly one real datapoint per period.
+  # The alarm sums it: 1 = the run happened and both checks passed.
   CanarySuccessMetric:
     Type: AWS::Logs::MetricFilter
     Properties:
       LogGroupName: !Ref CanaryLogGroup
-      FilterPattern: '{ $.check = * && $.ok = * }'
+      FilterPattern: '{ $.check = "gamehub" && $.ok = * }'
       MetricTransformations:
         - MetricNamespace: !Sub GameHub/${Stage}
-          MetricName: SyntheticSuccess
+          MetricName: SyntheticRunsPassed
           MetricValue: $.ok
-          DefaultValue: 0
-
-  CanaryDurationMetric:
-    Type: AWS::Logs::MetricFilter
-    Properties:
-      LogGroupName: !Ref CanaryLogGroup
-      FilterPattern: '{ $.check = * && $.ms = * }'
-      MetricTransformations:
-        - MetricNamespace: !Sub GameHub/${Stage}
-          MetricName: SyntheticDurationMs
-          MetricValue: $.ms
-          Unit: Milliseconds
-          DefaultValue: 0
 
   # ---------------------------------------------------------------
   # Alarms. Every one of them is described in docs/runbook.md.
@@ -375,14 +373,78 @@ Resources:
         The external availability check failed: the public site or the
         liveness endpoint did not answer 200 within 10 seconds.
       Namespace: !Sub GameHub/${Stage}
-      MetricName: SyntheticSuccess
-      Statistic: Average
+      MetricName: SyntheticRunsPassed
+      # Sum, not Average: CloudWatch emits the metric filter's default (0)
+      # for every log event that does not match the pattern, so an Average
+      # over a Lambda log group is diluted by its own START/END/REPORT
+      # lines. A sum ignores those zeros and answers the real question:
+      # did any run report success in this period?
+      Statistic: Sum
       Period: 300
       EvaluationPeriods: 1
       Threshold: 1
       ComparisonOperator: LessThanThreshold
-      # No data means the canary itself is broken — that is a page too.
+      # No data at all means the canary never ran — silence is a failure.
       TreatMissingData: breaching
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  MemoryAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub gamehub-${Stage}-memory-high
+      AlarmDescription: >-
+        Memory above 90% for 15 minutes. On a 1 GB host running MySQL,
+        Node and nginx this is the alarm that precedes the OOM killer.
+      Namespace: CWAgent
+      MetricName: mem_used_percent
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref InstanceId
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 90
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  DiskAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub gamehub-${Stage}-disk-high
+      AlarmDescription: >-
+        Root filesystem above 85%. Docker layers and image builds are what
+        fill it on this host.
+      Namespace: CWAgent
+      MetricName: disk_used_percent
+      # These dimensions were read back from the running agent
+      # (aws cloudwatch list-metrics --namespace CWAgent
+      #  --metric-name disk_used_percent) rather than assumed: the disk
+      # plugin adds path/device/fstype on top of InstanceId, and the
+      # device name comes from the NVMe attachment. A rebuilt host can
+      # rename the device, which leaves this alarm in INSUFFICIENT_DATA —
+      # docs/runbook.md §6 says to re-check them with that command.
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref InstanceId
+        - Name: path
+          Value: /
+        - Name: device
+          Value: nvme0n1p1
+        - Name: fstype
+          Value: xfs
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 85
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
       AlarmActions:
         - !Ref AlarmTopic
       OKActions:
@@ -416,8 +478,7 @@ Resources:
                   "stat": "Average",
                   "period": 300,
                   "metrics": [
-                    [ "GameHub/${Stage}", "SyntheticSuccess" ],
-                    [ ".", "SyntheticDurationMs" ]
+                    [ "GameHub/${Stage}", "SyntheticRunsPassed", { "stat": "Sum" } ]
                   ],
                   "view": "timeSeries",
                   "yAxis": { "left": { "min": 0, "max": 1 } }
@@ -473,7 +534,8 @@ Resources:
                   "stat": "Average",
                   "period": 300,
                   "metrics": [
-                    [ "CWAgent", "mem_used_percent", "InstanceId", "${InstanceId}" ]
+                    [ "CWAgent", "mem_used_percent", "InstanceId", "${InstanceId}" ],
+                    [ ".", "disk_used_percent", ".", ".", "path", "/", "device", "nvme0n1p1", "fstype", "xfs", { "yAxis": "right" } ]
                   ]
                 }
               },

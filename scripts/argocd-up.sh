@@ -35,7 +35,9 @@ if kubectl get deployment argocd-server -n argocd >/dev/null 2>&1; then
 else
     echo "==> installing Argo CD (${ARGO_VERSION})"
     kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-    kubectl apply -n argocd \
+    # --server-side: the applicationsets CRD's annotations exceed the 256 KiB
+    # limit of client-side apply's last-applied-configuration annotation.
+    kubectl apply --server-side -n argocd \
         -f "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGO_VERSION}/manifests/install.yaml" >/dev/null
 fi
 
