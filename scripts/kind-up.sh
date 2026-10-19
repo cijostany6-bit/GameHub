@@ -62,6 +62,17 @@ kubectl apply -f k8s/backend.yaml
 kubectl apply -f k8s/frontend.yaml
 
 # --- 4. wait for it --------------------------------------------------
+# The image tags are mutable (":local") and the Deployments say
+# imagePullPolicy: Never, so re-loading an image under a tag that has not
+# changed leaves the running Pods on the previous bytes: `kubectl apply`
+# sees no spec difference and does nothing. Restarting the workloads is
+# what actually swaps the code in. Without this, the script reports
+# success while the cluster serves the build from last time — which is
+# how /learn/ ended up answering with the SPA home page here while the
+# image on disk already contained the docs.
+echo "==> restarting the workloads onto the images just loaded"
+kubectl -n gamehub rollout restart deployment/gamehub-backend deployment/gamehub-frontend
+
 echo "==> waiting for rollouts"
 kubectl -n gamehub rollout status statefulset/gamehub-db --timeout=300s
 kubectl -n gamehub rollout status deployment/gamehub-backend --timeout=300s

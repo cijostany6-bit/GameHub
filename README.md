@@ -13,13 +13,15 @@ GameHub is a portfolio project that combines a futuristic gaming interface with 
 
 The project is being evolved into a production-style application: automated CI/CD, infrastructure as code on AWS, monitoring, and Kubernetes (local kind cluster + Argo CD).
 
-> **Status — Phase 7 complete (2026-10-19):** tested, CI'd, game-y, playable,
-> **live on AWS**, observable, runnable on Kubernetes — and now hardened. 84
-> automated tests, a Cognito sign-in gate with **working account deletion**
+> **Status — Phase 8 complete (2026-10-19):** tested, CI'd, game-y, playable and
+> **live on AWS**, observable, runnable on Kubernetes, hardened — and documented.
+> 84 automated tests, a Cognito sign-in gate with **working account deletion**
 > (GDPR art. 17, in the app rather than in a policy document), a bilingual
-> privacy notice, an SBOM + image scanning in CI, and deploys that only run on a
-> green CI for the exact commit. All described as CloudFormation and deployed by
-> keyless GitHub OIDC.
+> privacy notice, an SBOM + image scanning in CI, deploys that only run on a
+> green CI for the exact commit, a measured `t3.micro` load test, and the whole
+> write-up published at **`/learn/`** as a site and a PDF. All described as
+> CloudFormation and deployed by keyless GitHub OIDC, on a custom domain with an
+> ACM certificate.
 
 **Live demo:** <https://gamehub.worldofvpc.online> — create an account
 (email confirmation), sign in, and play. The landing page is public; the
@@ -226,9 +228,10 @@ printable PDF, and every claim in it traceable to a commit and a CI run.
   full history, and Dependabot for npm, Actions and base images
 - **Deploys are CI-gated**: the deploy workflow runs on a *successful CI run for
   the exact commit* (never a later, untested tip of `main`) and finishes with a
-  post-deploy smoke test against the public URL — homepage markup, all 12
-  catalogue entries, game details, and a `401` from an unauthenticated
-  `/api/me`
+  post-deploy smoke test against the public URL: the app shell, the documentation
+  site and its PDF, a `401` from every protected route without a token, and —
+  signing in as a dedicated smoke identity — the 12 catalogue entries, the game
+  details, and an identified player from `/api/me`
 
 ### ✅ Completed (Phase 8 — /learn documentation site, PDF, load test)
 

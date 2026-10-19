@@ -3,10 +3,12 @@
 > **Verified by:** a real single-node kind cluster (4 CPU / 6 GiB Colima VM) with
 > the app running from the same images as the Compose stack — `scripts/smoke.sh`
 > passing against the cluster's NodePort on `:8081` (12 games served from the
-> StatefulSet through the nginx proxy) — and Argo CD reporting the `gamehub`
-> Application as `Synced`/`Healthy` at the merged revision, with a manual
-> `kubectl scale --replicas=1` reverted to the declared 2 replicas by `selfHeal`
-> within 90 seconds.
+> StatefulSet through the nginx proxy, and the documentation landing page at
+> `/learn/`, asserted by marker rather than by status) — and Argo CD reporting
+> the `gamehub` Application as `Synced`/`Healthy` at the merged revision, with a
+> manual `kubectl scale --replicas=1` reverted to the declared 2 replicas by
+> `selfHeal` within one poll. Re-run in full after the dependency roll-up, which
+> is how the stale-image trap in item 11 was found.
 
 ## What was built
 
@@ -75,6 +77,27 @@ on Kubernetes, and can a controller keep it that way?".
    status yet. The wait loop now collects the output first and parses it
    defensively, which is why the script prints its progress lines instead of
    exiting after "waiting for the first sync".
+11. **A mutable image tag plus `imagePullPolicy: Never` means the cluster can
+   serve yesterday's bytes.** Re-verifying this phase after the dependency
+   upgrade exposed it: `kind load` had pushed the new image into the node, the
+   image on disk plainly contained the documentation, and yet `/learn/` in the
+   cluster answered with the SPA home page. Nothing had restarted the Pods — the
+   tag (`:local`) had not changed, so `kubectl apply` saw no spec difference and
+   did nothing. `scripts/kind-up.sh` now restarts the workloads after loading
+   them, which is the step that actually swaps the code in. The lasting lesson is
+   about the *check*, though: the old smoke test only looked at status codes, and
+   nginx's `try_files … /index.html` fallback answers **200 with the wrong page**
+   — the same failure mode as the CloudFront directory-URL bug (ADR-017), caught
+   the same way the second time only because the assertion became a marker
+   (`readme.html`) instead of a status. `scripts/smoke.sh` now asserts it, so
+   both the Compose and the Kubernetes path would fail loudly on a stale image.
+12. **The image carries the whole site, so local equals production.** The
+   deployed artifact is `frontend/` plus `learn/` in one bucket; the frontend
+   image now `COPY`s both, `.dockerignore` no longer excludes `learn/`, and the
+   app's footer links to `/learn/`. nginx resolves a directory to `index.html` on
+   its own, so the same URL works in Compose and in kind without the edge
+   function that CloudFront needs — a difference worth knowing when a link works
+   locally and 404s in production, or the reverse.
 
 ## Concepts to understand cold
 

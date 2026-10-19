@@ -20,7 +20,8 @@ Das Projekt wird zu einer Anwendung im Produktionsstil weiterentwickelt: automat
 > Richtliniendokument), ein zweisprachiger Datenschutzhinweis, eine SBOM +
 > Image-Scanning in CI, per CI-Gate gesicherte Deploys und eine
 > `t3.micro`-Lasttest-Messung. Alles als CloudFormation beschrieben und per
-> schlüssellosem GitHub-OIDC deployt.
+> schlüssellosem GitHub-OIDC deployt, auf einer eigenen Domain mit
+> ACM-Zertifikat.
 
 **Live-Demo:** <https://gamehub.worldofvpc.online> — lege ein Konto an
 (E-Mail-Bestätigung), melde dich an und spiele. Die Landing Page ist öffentlich;

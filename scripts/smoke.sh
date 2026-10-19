@@ -47,6 +47,21 @@ fi
 status=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/api/nope")
 check "404 handler /api/nope" "404" "$status"
 
+# 6. The documentation ships with the app. Checking the *marker* rather
+#    than the status code matters: both the real docs landing page and
+#    the SPA home page answer 200 here (nginx's try_files falls back to
+#    index.html, CloudFront's error responses do the same), so a status
+#    check would pass while /learn/ served the wrong page — which is
+#    exactly what happened once. readme.html appears only on the docs
+#    landing page.
+docs_marker=$(curl -s "${BASE_URL}/learn/" | grep -c "readme.html" || true)
+if [ "${docs_marker:-0}" -ge 1 ]; then
+    echo "  ✔ docs /learn/ (documentation landing page)"
+else
+    echo "  ✘ docs /learn/ is not the documentation landing page"
+    FAILURES=$((FAILURES + 1))
+fi
+
 if [ "$FAILURES" -gt 0 ]; then
     echo "✘ ${FAILURES} check(s) failed"
     exit 1

@@ -4,7 +4,7 @@
 #
 # Run against a REAL deployment:
 #
-#   SITE_URL=https://xxxx.cloudfront.net \
+#   SITE_URL=https://gamehub.worldofvpc.online \
 #   COGNITO_USER_POOL_ID=eu-central-1_xxxxxxxxx \
 #   COGNITO_CLIENT_ID=xxxxxxxxxxxxxxxxxxxxxxxxxx \
 #   ./scripts/verify-gdpr.sh
@@ -26,7 +26,7 @@
 
 set -euo pipefail
 
-: "${SITE_URL:?SITE_URL is required (e.g. https://xxxx.cloudfront.net)}"
+: "${SITE_URL:?SITE_URL is required (e.g. https://gamehub.worldofvpc.online)}"
 : "${COGNITO_USER_POOL_ID:?COGNITO_USER_POOL_ID is required}"
 : "${COGNITO_CLIENT_ID:?COGNITO_CLIENT_ID is required}"
 AWS_REGION="${AWS_REGION:-eu-central-1}"
