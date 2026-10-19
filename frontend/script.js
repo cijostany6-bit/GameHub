@@ -2,11 +2,10 @@
 // GAMEHUB — FRONTEND SCRIPT
 // =========================================================
 
-// Sign-in gate: enforced only when a Cognito pool is configured
-// (local development runs in open mode — see backend boot log).
-if (window.GameHubAuth) {
-  window.GameHubAuth.requireAuthGuard();
-}
+// NOTE: the sign-in gate is NOT applied here. This file also runs on
+// the landing page, which stays public on purpose — a visitor should
+// be able to look around before creating an account. games.html calls
+// GameHubAuth.requireAuthGuard() itself; the runner (play.js) does too.
 
 
 // =========================================================

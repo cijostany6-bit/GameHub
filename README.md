@@ -16,6 +16,10 @@ The project is being evolved into a production-style application: automated CI/C
 > site on S3 + CloudFront, the API on EC2, all described as CloudFormation and
 > deployed by keyless GitHub OIDC.
 
+**Live demo:** <https://d2qf9zxehny6bk.cloudfront.net> — create an account
+(email confirmation), sign in, and play. The landing page is public; the
+catalogue and the games require a signed-in player.
+
 ---
 
 ## 📌 Project Status
@@ -110,6 +114,9 @@ The project is being evolved into a production-style application: automated CI/C
 - **Keyless deploys**: GitHub Actions assumes a scoped role through OIDC
   (no AWS access keys anywhere); the workflow publishes the site, invalidates
   CloudFront and rolls out the API host over SSM
+- **Landing page stays public** while the catalogue and the runner require a
+  signed-in player — found by actually signing out live and following the
+  redirect, not by reading the code
 
 ### 🚧 Planned
 
@@ -361,8 +368,10 @@ rest through OIDC, with no AWS keys stored anywhere:
 
 **Cost note (honest):** the site (S3 + CloudFront), Cognito and the four
 CloudFormation stacks are inside the free tier at this traffic level. The EC2
-instance is free-tier eligible only on free-tier accounts — otherwise it is
-around $8/month for a `t3.micro`. Tear everything down with
+instance is the only line item: this account is on a free plan, so AWS *rejects*
+instance types that are not free-tier eligible (`t2.micro` failed with
+"not eligible for Free Tier") — the stack therefore defaults to `t3.micro`.
+On a non-free-tier account that is roughly $8/month. Tear everything down with
 `aws cloudformation delete-stack` in reverse order.
 
 ---
