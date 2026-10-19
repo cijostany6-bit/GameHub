@@ -188,12 +188,27 @@
             button.textContent = `SIGN OUT (${currentUser()})`;
             button.title = "Sign out of GameHub";
             button.addEventListener("click", signOut);
+            addAccountLink();
         } else {
             button.textContent = "SIGN IN";
             button.addEventListener("click", () => {
                 window.location.href = "signin.html";
             });
         }
+    }
+
+    // A signed-in player needs a way to reach the page that shows and
+    // deletes their data (GDPR art. 15 and 17). Added here rather than in
+    // five HTML files so it cannot drift out of sync with the session.
+    function addAccountLink() {
+        const nav = document.querySelector(".nav-links");
+        if (!nav || nav.querySelector("[data-account-link]")) return;
+
+        const link = document.createElement("a");
+        link.href = "profile.html";
+        link.textContent = "Account";
+        link.setAttribute("data-account-link", "");
+        nav.appendChild(link);
     }
 
     if (document.readyState === "loading") {

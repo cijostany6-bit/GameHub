@@ -68,6 +68,16 @@ jobs:
       - name: Load schema and seed data
         run: mysql -h 127.0.0.1 -P 3306 -u gamehub -pgamehub_local_pw gamehub < db/init.sql
 
+      - name: Migrations apply cleanly and are idempotent
+        env:
+          MIGRATE_VIA: client
+        run: |
+          ./scripts/migrate.sh
+          # The second run must find nothing to do — a migration that
+          # reapplies is a migration you cannot trust.
+          ./scripts/migrate.sh | tee /tmp/migrate2.log
+          grep -q "0 applied now" /tmp/migrate2.log
+
       - name: Tests with coverage gate (80/80/80)
         working-directory: backend
         run: npm run test:coverage
@@ -92,6 +102,18 @@ jobs:
             sleep 2
           done
           ./scripts/smoke.sh
+
+      - name: Apply migrations (the deployed host does the same after a rollout)
+        run: ./scripts/migrate.sh
+
+      - name: Trivy — scan the built image, not just the source tree
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: gamehub-backend:local
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
 
       - name: Service logs on failure
         if: failure()
@@ -146,3 +168,19 @@ jobs:
         run: |
           npm ci
           npm audit --audit-level=high
+
+      - name: SBOM — a dependency inventory, kept as a build artifact
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: gamehub-sbom.spdx.json
+          artifact-name: gamehub-sbom
+          # The action would otherwise open a PR with its own updates.
+          upload-artifact: true
+          upload-release-assets: false
+
+      - name: Confirm the SBOM is not empty
+        run: |
+          test -s gamehub-sbom.spdx.json
+          echo "packages: $(python3 -c "import json;print(len(json.load(open('gamehub-sbom.spdx.json'))['packages']))")"

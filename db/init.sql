@@ -30,3 +30,25 @@ INSERT INTO games (name, category, description) VALUES
 ON DUPLICATE KEY UPDATE
     category   = VALUES(category),
     description = VALUES(description);
+
+-- ---------------------------------------------------------
+-- Personal bests (Phase 7). Deliberately ONE row per
+-- (player, game) instead of an append-only score log:
+-- data minimisation is a GDPR principle, and the app only
+-- ever needs the best number. `user_sub` is Cognito's
+-- opaque subject — no email, no name, nothing reversible.
+-- The row is deleted when the player deletes their account
+-- (DELETE /api/me), which is the whole point of the feature.
+--
+-- Existing databases (no re-init) get this from
+-- db/migrations/001_personal_bests.sql via scripts/migrate.sh.
+-- ---------------------------------------------------------
+CREATE TABLE IF NOT EXISTS personal_bests (
+    user_sub   VARCHAR(64)  NOT NULL,
+    game       VARCHAR(100) NOT NULL,
+    score      INT UNSIGNED NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                          ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_sub, game),
+    INDEX idx_personal_bests_game (game, score DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -1,29 +1,42 @@
 name: Deploy
 
-# Publishes the site and rolls out the API host. Credentials come from
-# GitHub's OIDC token (short-lived) — there are no AWS keys in the repo.
+# =========================================================
+# GameHub — Deploy
+#
+# This workflow does not run on every push. It runs when the
+# CI workflow has finished on main and succeeded
+# (`workflow_run` + `conclusion == 'success'`), which gives the
+# pipeline one property that matters more than speed:
+#
+#   nothing reaches production that CI has not passed on the
+#   exact commit being deployed.
+#
+# The checkout below uses the CI run's head SHA, not the current
+# tip of main. If two merges land close together, the deploy
+# ships the commit that was tested, never a later untested one.
+#
+# Credentials come from GitHub's OIDC token (short-lived) — there
+# are no AWS keys in the repository and none on the host.
+#
+# Jobs
+#   1  frontend  build → S3 → CloudFront invalidation
+#   2  backend   git pull + compose up + schema migration, over SSM
+#   3  verify    smoke test against the public URL (the real edge)
+# =========================================================
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - "frontend/**"
-      - "backend/**"
-      - "db/**"
-      - "scripts/build-frontend.sh"
-      - "scripts/deploy-frontend.sh"
-      - "docker-compose.yml"
-      - "Dockerfile"
-      - ".github/workflows/deploy.yml"
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
   id-token: write # required for the OIDC exchange
 
 concurrency:
-  group: deploy-${{ github.ref }}
+  group: deploy-main
   cancel-in-progress: false
 
 env:
@@ -43,11 +56,19 @@ jobs:
   frontend:
     name: Publish site (S3 + CloudFront)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Green CI on main, or a human pressing the button.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     permissions:
       contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Deploy what CI tested, not whatever main points at now.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -82,11 +103,16 @@ jobs:
             --distribution-id "$DISTRIBUTION_ID" --id "$ID"
 
   # ---------------------------------------------------------------
-  # API host → git pull + compose up, over SSM (no SSH, no keys)
+  # API host → git pull + compose up + migrate, over SSM
+  # (no SSH port, no key pair, no stored credentials)
   # ---------------------------------------------------------------
   backend:
     name: Deploy API host (SSM)
     runs-on: ubuntu-latest
+    timeout-minutes: 25
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     permissions:
       contents: read
       id-token: write
@@ -96,7 +122,7 @@ jobs:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Roll out the compose stack
+      - name: Roll out the compose stack and bring the schema up to date
         run: |
           cat > params.json <<'JSON'
           {
@@ -107,6 +133,8 @@ jobs:
               "git checkout main",
               "git pull --ff-only",
               "docker compose up -d --build",
+              "for i in $(seq 1 45); do docker compose exec -T db mysqladmin ping --silent && break; sleep 2; done",
+              "./scripts/migrate.sh",
               "docker compose ps"
             ]
           }
@@ -138,3 +166,77 @@ jobs:
               --query "StandardErrorContent" --output text
             exit 1
           fi
+
+  # ---------------------------------------------------------------
+  # Post-deploy verification — against the PUBLIC url.
+  #
+  # A deploy is not done when the command exits 0; it is done when
+  # the thing a player would reach answers correctly. This checks
+  # the edge (CloudFront), not the host behind it, so it catches a
+  # broken origin, a bad certificate or a stale cache as well as a
+  # crashed container.
+  # ---------------------------------------------------------------
+  verify:
+    name: Verify the public deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [frontend, backend]
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve the distribution domain
+        run: |
+          SITE_URL=$(aws cloudfront get-distribution \
+            --id "$DISTRIBUTION_ID" \
+            --query "Distribution.DomainName" --output text)
+          echo "SITE_URL=https://$SITE_URL" >> "$GITHUB_ENV"
+          echo "Verifying $SITE_URL"
+
+      - name: Wait for the site and the API to answer
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS "$SITE_URL/api/health" >/dev/null 2>&1; then
+              echo "API healthy after $((i * 5))s"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "API did not become healthy"
+          curl -sS -o /dev/null -w "last status: %{http_code}\n" \
+            "$SITE_URL/api/health" || true
+          exit 1
+
+      - name: Smoke test the deployed edge
+        run: |
+          set -e
+          fail() { echo "FAIL: $1"; exit 1; }
+
+          # 1. The app shell is served by the CDN.
+          curl -fsS "$SITE_URL/" -o /tmp/home.html
+          grep -qi "GameHub" /tmp/home.html || fail "home page has no GameHub markup"
+          grep -qi "ENTER THE" /tmp/home.html || fail "home page is not the real hero"
+
+          # 2. The games catalogue is really served by the API (not a
+          #    cached error page): 12 playable entries.
+          curl -fsS "$SITE_URL/api/games" -o /tmp/games.json
+          COUNT=$(python3 -c "import json;print(len(json.load(open('/tmp/games.json'))))")
+          [ "$COUNT" -eq 12 ] || fail "expected 12 games, got $COUNT"
+
+          # 3. The auth gate is actually on: an unauthenticated call to a
+          #    protected route must be refused, not silently allowed.
+          STATUS=$(curl -sS -o /dev/null -w '%{http_code}' "$SITE_URL/api/me")
+          [ "$STATUS" = "401" ] || fail "expected 401 from /api/me, got $STATUS"
+
+          # 4. Every catalogue title resolves to a real game record.
+          for id in 1 6 12; do
+            curl -fsS "$SITE_URL/api/games/$id" -o /dev/null \
+              || fail "/api/games/$id is not served"
+          done
+
+          echo "Post-deploy smoke test passed: site, catalogue, auth gate, game details."

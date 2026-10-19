@@ -96,6 +96,18 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
         # Ship logs and host metrics (memory, disk, swap) to CloudWatch.
         - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Policies:
+        # Account deletion (GDPR art. 17) has to delete the identity that
+        # holds the player's email, and that is a Cognito admin call.
+        # Scoped to this one pool: the API can remove a user from its own
+        # user pool and from nothing else, in no other account.
+        - PolicyName: !Sub gamehub-${Stage}-cognito-erasure
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: cognito-idp:AdminDeleteUser
+                Resource: !Sub "arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}"
       Tags:
         - Key: Project
           Value: GameHub
