@@ -1,0 +1,106 @@
+# =========================================================
+# Express API.
+#
+# The Service is named `backend` and not `gamehub-backend` on
+# purpose: the nginx config baked into the frontend image
+# proxies to `http://backend:3000`, exactly as it does in
+# docker-compose.yml. The image is the same artifact in both
+# environments, so the Service name is part of its contract —
+# renaming it here would mean maintaining two frontend images.
+# =========================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: gamehub
+  labels:
+    app.kubernetes.io/name: gamehub-backend
+    app.kubernetes.io/part-of: gamehub
+spec:
+  selector:
+    app.kubernetes.io/name: gamehub-backend
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gamehub-backend
+  namespace: gamehub
+  labels:
+    app.kubernetes.io/name: gamehub-backend
+    app.kubernetes.io/part-of: gamehub
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gamehub-backend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gamehub-backend
+        app.kubernetes.io/part-of: gamehub
+    spec:
+      # The image already runs as the unprivileged `node` user.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: backend
+          # Built locally and side-loaded into the cluster by
+          # scripts/kind-up.sh — hence Never, not IfNotPresent.
+          image: gamehub-backend:local
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: gamehub-config
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gamehub-secrets
+                  key: DB_PASSWORD
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false # node writes nothing, but npm/express may use /tmp
+            capabilities:
+              drop:
+                - ALL
+          # Liveness must not depend on the database: a DB outage
+          # should stop new traffic, not restart every pod.
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /api/ready
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

@@ -5,7 +5,9 @@
 #                     (MySQL as a service container)
 # Job 2  stack-smoke builds the REAL Docker images and runs the
 #                     full stack end-to-end on the runner
-# Job 3  security    gitleaks (history) + Trivy (fs) + npm audit
+# Job 3  manifests   Kubernetes schema validation + drift check on
+#                     the generated DB seed ConfigMap
+# Job 4  security    gitleaks (history) + Trivy (fs) + npm audit
 # =========================================================
 
 name: CI
@@ -98,6 +100,24 @@ jobs:
       - name: Teardown
         if: always()
         run: docker compose down -v
+
+  manifests:
+    name: Kubernetes manifests (schema + drift)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Database seed ConfigMap matches db/init.sql
+        run: ./scripts/build-k8s-dbinit.sh --check
+
+      - name: Validate manifests against the Kubernetes schema
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
+            | tar xz -C /tmp kubeconform
+          # Cluster is a kind config, not a manifest; Application is an
+          # Argo CD CRD, whose schema is not in the upstream set.
+          /tmp/kubeconform -strict -summary -skip Cluster,Application k8s/
 
   security:
     name: Security scans

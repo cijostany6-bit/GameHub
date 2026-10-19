@@ -1,0 +1,51 @@
+# =========================================================
+# GENERATED FILE — do not edit by hand.
+#
+#   source: db/init.sql
+#   render: scripts/build-k8s-dbinit.sh
+#
+# The rendered copy is checked into Git because Argo CD syncs
+# manifests from the repository, and it is verified against the
+# source in CI (scripts/build-k8s-dbinit.sh --check).
+# =========================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gamehub-db-init
+  namespace: gamehub
+  labels:
+    app.kubernetes.io/part-of: gamehub
+data:
+  init.sql: |
+    -- =========================================================
+    -- GameHub — database bootstrap (runs ONCE, on first start
+    -- of an empty MySQL data volume)
+    -- =========================================================
+
+    CREATE TABLE IF NOT EXISTS games (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        name        VARCHAR(100) NOT NULL UNIQUE,
+        category    VARCHAR(32)  NOT NULL,
+        description VARCHAR(255) NOT NULL,
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_games_category (category)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+    -- Seed data — categories must match the filter buttons in
+    -- frontend/games.html: Action | Racing | Strategy
+    INSERT INTO games (name, category, description) VALUES
+        ('Cyber Strike',      'Action',   'Neon-drenched tactical shooter set in a corporate-ruled megacity.'),
+        ('Neon Rivals',       'Racing',   'Anti-gravity street racing through holographic night districts.'),
+        ('Shadow Protocol',   'Strategy', 'Turn-based espionage command: manage agents, intel and safehouses.'),
+        ('Plasma Siege',      'Action',   'Cooperative arena shooter against waves of rogue security drones.'),
+        ('Turbo Drift Zero',  'Racing',   'Arcade drift championship across zero-gravity mountain passes.'),
+        ('Iron Dominion',     'Strategy', 'Build, supply and defend a faction in a persistent war economy.'),
+        ('Void Hunters',      'Action',   'Fast-paced bounty hunting aboard a derelict generation ship.'),
+        ('Apex Circuit',      'Racing',   'Simulation-grade league racing with dynamic weather and damage.'),
+        ('Cipher State',      'Strategy', 'Outsmart rival hackers in a real-time network-control board game.'),
+        ('Rift Breakers',     'Action',   'Portal-jumping cooperative brawler with permadeath runs.'),
+        ('Velocity Punk',     'Racing',   'Bootleg street racing where the soundtrack sets your top speed.'),
+        ('Grid Commander',    'Strategy', 'Command an orbital grid of satellites in a cold-war tower defence.')
+    ON DUPLICATE KEY UPDATE
+        category   = VALUES(category),
+        description = VALUES(description);

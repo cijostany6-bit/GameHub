@@ -7,7 +7,7 @@
 
 COMPOSE := $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
 
-.PHONY: bootstrap up down restart logs ps smoke test test-frontend lint coverage db-reset clean help
+.PHONY: bootstrap up down restart logs ps smoke test test-frontend lint coverage db-reset clean help kind-up kind-down argocd-up k8s-dbinit learn
 
 bootstrap: up smoke ## Clone → run: build, start, wait for health, verify endpoints
 	@echo "✔ GameHub is up → http://localhost:8080"
@@ -49,6 +49,21 @@ db-reset: ## Delete the DB volume and re-seed from db/init.sql
 
 clean: ## Full teardown including images and DB volume
 	$(COMPOSE) down -v --rmi local
+
+kind-up: ## Local Kubernetes (kind): build, load, apply, smoke test
+	./scripts/kind-up.sh
+
+kind-down: ## Delete the kind cluster (keeps Docker images)
+	kind delete cluster --name $${CLUSTER:-gamehub}
+
+argocd-up: ## Install Argo CD and sync the app manifests from Git
+	./scripts/argocd-up.sh
+
+k8s-dbinit: ## Re-render the Kubernetes DB seed ConfigMap from db/init.sql
+	./scripts/build-k8s-dbinit.sh
+
+learn: ## Build the /learn documentation site and the PDF
+	./scripts/build-pdf.sh
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \

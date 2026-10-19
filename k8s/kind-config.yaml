@@ -1,0 +1,21 @@
+# =========================================================
+# kind cluster for GameHub.
+#
+#   kind create cluster --config k8s/kind-config.yaml
+#
+# One control-plane node doubles as the worker (the whole
+# point of kind: a real API server without a real bill).
+# Port 30080 inside the node is published on host port 8081
+# so the cluster can run *alongside* the Compose stack (which
+# owns 8080) instead of replacing it. `scripts/kind-up.sh`
+# points the smoke test at that URL.
+# =========================================================
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: gamehub
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8081
+        protocol: TCP
