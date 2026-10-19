@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Step 0 — Reproducible Local Foundation ✅ (2026-10-18) · GameHub /learn</title>
+<meta name="description" content="A Futuristic Gaming Platform Built with AWS &amp; DevOps" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<div class="layout">
+  <aside class="sidebar">
+    <a class="brand" href="index.html">GAME<span>HUB</span></a>
+    <p class="sidebar-sub">/learn</p>
+    <nav class="nav" aria-label="Learning documents">
+      <ul>
+        <li><a href="index.html"><span class="nav-kind">HOME</span>All documents</a></li>
+        <li><a href="readme.html"><span class="nav-kind">OVERVIEW</span>GameHub</a></li>
+        <li><a href="step-0-reproducible-foundation.html" class="is-active"><span class="nav-kind">STEP 0</span>Step 0 — Reproducible Local Foundation ✅ (2026-10-18)</a></li>
+        <li><a href="step-1-tests-and-ci.html"><span class="nav-kind">STEP 1</span>Step 1 — Automated Tests + GitHub Actions CI ✅ (2026-10-18)</a></li>
+        <li><a href="step-2-gamey-ui.html"><span class="nav-kind">STEP 2</span>Step 2 — Game-y UI: Live Background + Self-Hosted Arcade Fonts ✅ (2026-10-18)</a></li>
+        <li><a href="step-3-real-games.html"><span class="nav-kind">STEP 3</span>Step 3 — Real Playable Games ✅ (2026-10-19)</a></li>
+        <li><a href="step-4-auth-and-live.html"><span class="nav-kind">STEP 4</span>Step 4 — Real Auth + Live on AWS ✅ (2026-10-19)</a></li>
+        <li><a href="step-5-observability.html"><span class="nav-kind">STEP 5</span>Step 5 — Observability ✅ (2026-10-19)</a></li>
+        <li><a href="step-8-learn-site.html"><span class="nav-kind">STEP 8</span>Step 8 — /learn Documentation Site + PDF Export ✅ (2026-10-19)</a></li>
+        <li><a href="runbook.html"><span class="nav-kind">DOC</span>Runbook — GameHub (prod)</a></li>
+        <li><a href="slo.html"><span class="nav-kind">DOC</span>Service level objectives — GameHub</a></li>
+      </ul>
+    </nav>
+    <div class="sidebar-foot">
+      <a class="btn btn-primary" href="gamehub-guide.pdf">Download the PDF</a>
+      <a class="btn btn-ghost" href="https://d2qf9zxehny6bk.cloudfront.net">Live demo</a>
+      <a class="btn btn-ghost" href="https://github.com/cijostany6-bit/GameHub">GitHub repo</a>
+    </div>
+  </aside>
+  <main id="content" class="content">
+    <div class="doc-meta">
+      <span class="chip">STEP 0</span>
+      <span class="chip chip-source">docs/step-0-reproducible-foundation.md</span>
+    </div>
+    <article class="md">
+<h1 id="step-0-reproducible-local-foundation-2026-10-18">Step 0 — Reproducible Local Foundation ✅ (2026-10-18)</h1>
+<blockquote><p><strong>Verified by:</strong> <code>scripts/smoke.sh</code> (5 checks) · full <code>make clean</code> → <code>make bootstrap</code> teardown-and-rebuild · browser check (12 DB-backed cards)</p></blockquote>
+<h2 id="what-was-built">What was built</h2>
+<p>The stack went from <strong>not runnable at all</strong> (dead AWS RDS endpoint, no local database, Docker runtime down) to <code>git clone &amp;&amp; make bootstrap</code> giving a fully working, seeded application with <strong>zero configuration</strong>.</p>
+<div class="table-wrap"><table><thead><tr><th>Piece</th><th>Decision</th><th>Why not the alternative</th></tr></thead><tbody><tr><td>MySQL <strong>8.4 container</strong> + <code>db/init.sql</code></td><td>Auto-seeds schema + 12 games on first boot of an empty volume</td><td><em>Cloud DB now</em> → needs an account, costs money, breaks fresh clones; <em>no DB</em> → the original state, catalogue dead</td></tr><tr><td><strong>Connection pool</strong> (<code>mysql2/promise</code>)</td><td>One shared pool, <code>connectionLimit: 10</code></td><td><em>Connection per request</em> (what existed) → TCP+TLS handshake on every request, exhausts MySQL <code>max_connections</code> under load</td></tr><tr><td><strong>Liveness vs readiness split</strong></td><td><code>/api/health</code> never touches the DB; <code>/api/ready</code> does</td><td><em>Health checks the DB</em> (what existed) → a database blip makes the orchestrator think the app is dead → crash-looping containers</td></tr><tr><td><strong>Healthchecks + ordered startup</strong> in compose</td><td><code>db</code> healthy → <code>backend</code> healthy → <code>frontend</code> starts</td><td><em><code>depends_on</code> without conditions</em> → app starts before MySQL accepts connections → first queries fail</td></tr><tr><td><strong>No published API port</strong></td><td>Only nginx <code>:8080</code> reaches the host</td><td><em>Publishing <code>:3000</code></em> → the API bypasses the proxy layer on every developer machine</td></tr><tr><td>Pinned images + <code>npm ci</code> + non-root</td><td><code>node:22-alpine</code>, <code>nginx:1.29-alpine</code>, <code>mysql:8.4</code>, uid 1000</td><td><em><code>node:alpine</code> + <code>npm install</code></em> → unreproducible builds, root processes</td></tr></tbody></table></div>
+<h2 id="the-bugs-we-hit">The bugs we hit</h2>
+<ol><li><strong>Critical npm advisory</strong> (<code>proxy-addr</code>, IP spoofing via IPv4-mapped IPv6) surfaced by <code>npm audit</code> during the build → fixed with <code>npm audit fix</code>, lockfile updated, image rebuilt, 0 vulnerabilities since.</li><li><strong>A README claim was false</strong>: it said &quot;AWS RDS integration&quot; while the configured endpoint did not even resolve (NXDOMAIN). The honest fix — a local database plus an honest status table — beat any workaround.</li></ol>
+<h2 id="concepts-to-understand-cold">Concepts to understand cold</h2>
+<ul><li>Why a <strong>pool</strong> beats per-request connections (and what <code>connectionLimit</code> protects)</li><li><strong>Liveness vs readiness</strong>: which probe answers &quot;should I restart you?&quot; vs &quot;should I send you traffic?&quot; — and why mixing them causes crash loops</li><li><strong>Layer caching</strong>: dependency layer (<code>package.json</code> + lockfile) before source so code edits don't re-download packages</li><li>What <code>docker-entrypoint-initdb.d</code> does (and why it only runs on an <em>empty</em> volume)</li></ul>
+<h2 id="interview-questions-this-unlocks">Interview questions this unlocks</h2>
+<ol><li><em>&quot;Your service is running but <code>/api/ready</code> returns 503 — what's happening and what do you do?&quot;</em></li><li><em>&quot;How do you make an application reproducible for a new developer?&quot;</em></li><li><em>&quot;Why is your backend port not exposed on the host?&quot;</em></li><li><em>&quot;The database container was recreated and your data is gone — why, and how do you prevent it?&quot;</em> (named volume; <code>make db-reset</code> is the <em>intentional</em> wipe)</li></ol>
+    </article>
+    <footer class="page-footer">
+      <p>GameHub /learn — generated from <code>README.md</code> and <code>docs/*.md</code> by
+      <code>scripts/build-learn.js</code>. Fonts are self-hosted (OFL); this site makes no third-party requests.</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

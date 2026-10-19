@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Runbook — GameHub (prod) · GameHub /learn</title>
+<meta name="description" content="A Futuristic Gaming Platform Built with AWS &amp; DevOps" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<div class="layout">
+  <aside class="sidebar">
+    <a class="brand" href="index.html">GAME<span>HUB</span></a>
+    <p class="sidebar-sub">/learn</p>
+    <nav class="nav" aria-label="Learning documents">
+      <ul>
+        <li><a href="index.html"><span class="nav-kind">HOME</span>All documents</a></li>
+        <li><a href="readme.html"><span class="nav-kind">OVERVIEW</span>GameHub</a></li>
+        <li><a href="step-0-reproducible-foundation.html"><span class="nav-kind">STEP 0</span>Step 0 — Reproducible Local Foundation ✅ (2026-10-18)</a></li>
+        <li><a href="step-1-tests-and-ci.html"><span class="nav-kind">STEP 1</span>Step 1 — Automated Tests + GitHub Actions CI ✅ (2026-10-18)</a></li>
+        <li><a href="step-2-gamey-ui.html"><span class="nav-kind">STEP 2</span>Step 2 — Game-y UI: Live Background + Self-Hosted Arcade Fonts ✅ (2026-10-18)</a></li>
+        <li><a href="step-3-real-games.html"><span class="nav-kind">STEP 3</span>Step 3 — Real Playable Games ✅ (2026-10-19)</a></li>
+        <li><a href="step-4-auth-and-live.html"><span class="nav-kind">STEP 4</span>Step 4 — Real Auth + Live on AWS ✅ (2026-10-19)</a></li>
+        <li><a href="step-5-observability.html"><span class="nav-kind">STEP 5</span>Step 5 — Observability ✅ (2026-10-19)</a></li>
+        <li><a href="step-8-learn-site.html"><span class="nav-kind">STEP 8</span>Step 8 — /learn Documentation Site + PDF Export ✅ (2026-10-19)</a></li>
+        <li><a href="runbook.html" class="is-active"><span class="nav-kind">DOC</span>Runbook — GameHub (prod)</a></li>
+        <li><a href="slo.html"><span class="nav-kind">DOC</span>Service level objectives — GameHub</a></li>
+      </ul>
+    </nav>
+    <div class="sidebar-foot">
+      <a class="btn btn-primary" href="gamehub-guide.pdf">Download the PDF</a>
+      <a class="btn btn-ghost" href="https://d2qf9zxehny6bk.cloudfront.net">Live demo</a>
+      <a class="btn btn-ghost" href="https://github.com/cijostany6-bit/GameHub">GitHub repo</a>
+    </div>
+  </aside>
+  <main id="content" class="content">
+    <div class="doc-meta">
+      <span class="chip">DOC</span>
+      <span class="chip chip-source">docs/runbook.md</span>
+    </div>
+    <article class="md">
+<h1 id="runbook-gamehub-prod">Runbook — GameHub (prod)</h1>
+<blockquote><p>One section per alarm. Each one says what the alarm means, how to confirm the cause with a command, and what to do about it. Everything here is done over <strong>SSM</strong> — there is no SSH access to the host by design.</p></blockquote>
+<h2 id="0-ground-rules">0. Ground rules</h2>
+<pre><code class="language-bash">export AWS_REGION=eu-central-1
+export INSTANCE_ID=$(aws ec2 describe-instances --region &quot;$AWS_REGION&quot; \
+  --filters Name=tag:Name,Values=gamehub-prod* \
+  --query &quot;Reservations[].Instances[].InstanceId&quot; --output text)</code></pre>
+<p>Run a command on the host (no keys, no SSH — IAM decides who may do this):</p>
+<pre><code class="language-bash">aws ssm send-command --region &quot;$AWS_REGION&quot; --instance-ids &quot;$INSTANCE_ID&quot; \
+  --document-name AWS-RunShellScript \
+  --parameters 'commands=[&quot;docker compose -f /opt/gamehub/docker-compose.yml ps&quot;]' \
+  --query Command.CommandId --output text</code></pre>
+<p>Check every alarm at once:</p>
+<pre><code class="language-bash">aws cloudwatch describe-alarms --region &quot;$AWS_REGION&quot; \
+  --alarm-name-prefix gamehub-prod \
+  --query &quot;MetricAlarms[].[AlarmName,StateValue]&quot; --output table</code></pre>
+<p>The general shape of the response is always the same: <strong>state → evidence → action</strong>, and only ever through code, never the console.</p>
+<h2 id="1-gamehub-prod-synthetic-check-failed">1. <code>gamehub-prod-synthetic-check-failed</code></h2>
+<p><strong>Means:</strong> the external check could not get a <code>200</code> from the site or from <code>/api/health</code> within 10 seconds. This is the closest thing to &quot;users cannot use the site&quot;.</p>
+<p><strong>Confirm:</strong></p>
+<pre><code class="language-bash">curl -sS -o /dev/null -w '%{http_code} %{time_total}s\n' https://&lt;distribution&gt;/ 
+curl -sS -o /dev/null -w '%{http_code} %{time_total}s\n' https://&lt;distribution&gt;/api/health
+aws lambda invoke --region &quot;$AWS_REGION&quot; \
+  --function-name gamehub-prod-canary --log-type Tail /dev/stdout | tail -5</code></pre>
+<p><strong>Act:</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Evidence</th><th>Likely cause</th><th>Action</th></tr></thead><tbody><tr><td><code>/</code> fails, <code>/api/health</code> fine</td><td>CloudFront/S3 path</td><td>check the distribution status, then re-run the deploy workflow (<code>workflow_dispatch</code>)</td></tr><tr><td>both fail</td><td>the EC2 host is down</td><td>go to section 4 (instance status)</td></tr><tr><td><code>/api/health</code> fails, <code>/</code> fine</td><td>the Express container is unhealthy</td><td>section 3, then <code>docker compose up -d</code> on the host</td></tr></tbody></table></div>
+<h2 id="2-gamehub-prod-http-5xx">2. <code>gamehub-prod-http-5xx</code></h2>
+<p><strong>Means:</strong> more than 5 responses with <code>status &gt;= 500</code> in 5 minutes behind nginx.</p>
+<p><strong>Confirm</strong> — the log line is JSON, so this is a query rather than a grep:</p>
+<pre><code class="language-bash"># CloudWatch Logs Insights, /gamehub/prod/nginx-access
+fields ts, uri, status, request_time, remote_addr
+| filter status &gt;= 500
+| sort ts desc
+| limit 20</code></pre>
+<p>Then, on the host:</p>
+<pre><code class="language-bash">docker compose -f /opt/gamehub/docker-compose.yml logs --tail=200 backend</code></pre>
+<p><strong>Act:</strong> a 5xx caused by the last deploy → <code>git revert</code> on <code>main</code> and let the pipeline republish. A 5xx from the database (<code>ER_...</code> in the log) → check <code>docker compose ps db</code> and the MySQL healthcheck; the app returns 503, not a crash, so the frontend stays up.</p>
+<h2 id="3-gamehub-prod-api-latency-p99">3. <code>gamehub-prod-api-latency-p99</code></h2>
+<p><strong>Means:</strong> p99 of <code>/api/*</code> above 1.5 s for 10 minutes.</p>
+<p><strong>Confirm:</strong></p>
+<pre><code class="language-bash"># CloudWatch Logs Insights
+fields ts, uri, request_time, upstream_time
+| filter uri like /^\/api/
+| stats pct(request_time, 99) as p99, avg(request_time) as avg, count(*) as n by uri
+| sort p99 desc</code></pre>
+<p>The gap between <code>request_time</code> and <code>upstream_time</code> tells you who is slow: nginx/TLS-side or Express.</p>
+<p><strong>Act:</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Cause</th><th>Action</th></tr></thead><tbody><tr><td>One expensive endpoint</td><td>fix the query or add an index — the catalogue read and the scores read are the only DB paths</td></tr><tr><td>CPU saturation (see <code>cpu-high</code>)</td><td>the instance is the bottleneck: stop a concurrent <code>docker compose build</code> and confirm the credit balance is recovering</td></tr><tr><td>MySQL swapping</td><td>memory alarm follows; the host has 2 GB swap and 1 GB RAM, so a heavy query can push MySQL into swap</td></tr></tbody></table></div>
+<h2 id="4-gamehub-prod-instance-status-check-failed">4. <code>gamehub-prod-instance-status-check-failed</code></h2>
+<p><strong>Means:</strong> the hypervisor cannot reach the instance, or the OS is not responding. Everything else is noise until this is clear.</p>
+<p><strong>Confirm:</strong></p>
+<pre><code class="language-bash">aws ec2 describe-instance-status --region &quot;$AWS_REGION&quot; \
+  --instance-ids &quot;$INSTANCE_ID&quot; --include-all-instances \
+  --query &quot;InstanceStatuses[].[InstanceStatus.Status,SystemStatus.Status]&quot;
+aws ec2 get-console-output --region &quot;$AWS_REGION&quot; \
+  --instance-id &quot;$INSTANCE_ID&quot; --output text | tail -30</code></pre>
+<p><strong>Act:</strong> a <em>system</em> status failure is AWS-side — stop and start the instance (the elastic IP keeps the address stable) and let the user-data boot the stack again. An <em>instance</em> status failure with an OOM message in the console output means the stack ran out of memory: the container restart policies bring it back, but the fix is a real one (see <code>cpu-credit-balance-low</code>).</p>
+<h2 id="5-gamehub-prod-cpu-high-cpu-credit-balance-low">5. <code>gamehub-prod-cpu-high</code> / <code>cpu-credit-balance-low</code></h2>
+<p><strong>Means:</strong> the burstable instance is out of headroom. <code>CPUUtilization</code> above 85 % for 15 minutes, or fewer than 20 CPU credits left.</p>
+<p><strong>Confirm:</strong></p>
+<pre><code class="language-bash">aws cloudwatch get-metric-statistics --region &quot;$AWS_REGION&quot; \
+  --namespace AWS/EC2 --metric-name CPUCreditBalance \
+  --dimensions Name=InstanceId,Value=&quot;$INSTANCE_ID&quot; \
+  --start-time &quot;$(date -u -v-1H +%FT%TZ)&quot; --end-time &quot;$(date -u +%FT%TZ)&quot; \
+  --period 300 --statistics Average
+
+# who is eating the CPU
+aws ssm send-command --region &quot;$AWS_REGION&quot; --instance-ids &quot;$INSTANCE_ID&quot; \
+  --document-name AWS-RunShellScript \
+  --parameters 'commands=[&quot;docker stats --no-stream&quot;,&quot;uptime&quot;]' \
+  --query Command.CommandId --output text</code></pre>
+<p><strong>Act:</strong> if a build is running, wait — a <code>docker compose build</code> on 2 vCPU is the expected cause. If it is sustained traffic, that is the signal to move the workload off the burstable class (see the roadmap), not to silence the alarm.</p>
+<h2 id="6-gamehub-prod-memory-high-gamehub-prod-disk-high">6. <code>gamehub-prod-memory-high</code> / <code>gamehub-prod-disk-high</code></h2>
+<p><strong>Means:</strong> memory above 90 % (a 1 GB instance running MySQL, Node and nginx) or the root filesystem above 85 % (Docker images and logs live there).</p>
+<p><strong>Confirm:</strong></p>
+<pre><code class="language-bash">aws ssm send-command --region &quot;$AWS_REGION&quot; --instance-ids &quot;$INSTANCE_ID&quot; \
+  --document-name AWS-RunShellScript \
+  --parameters 'commands=[&quot;free -m&quot;,&quot;df -h /&quot;,&quot;du -sh /var/lib/docker /var/log/gamehub&quot;]' \
+  --query Command.CommandId --output text</code></pre>
+<p><strong>Act:</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Cause</th><th>Action</th></tr></thead><tbody><tr><td>Memory</td><td>the swap file in the user-data is the buffer, not the fix: reduce <code>innodb_buffer_pool_size</code> in <code>db/my.cnf</code> or move the database off the box</td></tr><tr><td>Disk from Docker</td><td><code>docker system prune -af --volumes</code> removes old layers (it will NOT touch the named volumes — verify with <code>docker volume ls</code> first)</td></tr><tr><td>Disk from logs</td><td>the agent ships logs with 7-day retention in CloudWatch; the local copies are rotated by Docker's <code>json-file</code> driver, so a runaway log is a code smell</td></tr></tbody></table></div>
+<h2 id="7-rollback">7. Rollback</h2>
+<p>The pipeline is the only way changes reach the host, so the rollback is also a pipeline operation:</p>
+<pre><code class="language-bash">git revert &lt;bad-sha&gt;          # or: git revert --mainline 1 &lt;merge-sha&gt;
+git push origin main</code></pre>
+<p><code>deploy.yml</code> publishes the site and rolls the host to the reverted commit. The frontend image is built on the host from the checked-out commit, so &quot;the previous version&quot; is exactly the previous commit — no image registry needed. Database changes are the one thing a revert does not undo: the schema is additive (see <code>backend/schema.sql</code>), which is why it can be.</p>
+<h2 id="8-escalation-and-evidence">8. Escalation and evidence</h2>
+<ul><li><strong>Alarms:</strong> <code>gamehub-prod-alarms</code> (SNS). Subscribe with <code>aws sns subscribe --topic-arn &lt;arn&gt; --protocol email --notification-endpoint &lt;you@example.com&gt;</code> and confirm the mail.</li><li><strong>Dashboard:</strong> <code>gamehub-prod</code> (CloudWatch) — availability, error count, latency percentiles, host pressure, live log tables.</li><li><strong>Logs:</strong> <code>/gamehub/prod/nginx-access</code> (structured JSON, every request) and <code>/gamehub/prod/app</code> (container stdout/stderr, JSON from Express).</li><li><strong>Audit:</strong> CloudTrail records every <code>ssm:SendCommand</code>, so &quot;who restarted the host at 03:00&quot; has an answer.</li></ul>
+    </article>
+    <footer class="page-footer">
+      <p>GameHub /learn — generated from <code>README.md</code> and <code>docs/*.md</code> by
+      <code>scripts/build-learn.js</code>. Fonts are self-hosted (OFL); this site makes no third-party requests.</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

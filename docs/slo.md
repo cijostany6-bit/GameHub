@@ -9,7 +9,7 @@
 
 | # | Objective | Target (rolling 30 days) | Measured by | Alarm |
 |---|---|---|---|---|
-| SLO-1 | **Availability** — the public site answers `200` | ≥ 99.5 % | Synthetic check every 5 min from the Lambda canary (`SyntheticSuccess`) | `gamehub-prod-synthetic-check-failed` |
+| SLO-1 | **Availability** — the public site answers `200` | ≥ 99.5 % | Synthetic check every 5 min from the Lambda canary (`SyntheticRunsPassed`, summed) | `gamehub-prod-synthetic-check-failed` |
 | SLO-2 | **API availability** — `/api/*` answers without a 5xx | ≥ 99.5 % | nginx access log → metric filter (`ServerErrors` vs `Requests`) | `gamehub-prod-http-5xx` |
 | SLO-3 | **API latency** — p99 of `/api/*` request time | ≤ 1.5 s | nginx access log `request_time` → metric filter (`ApiRequestTimeSeconds`) | `gamehub-prod-api-latency-p99` |
 | SLO-4 | **Host health** — instance status checks pass | no failing check for 2 min | EC2 `StatusCheckFailed` | `gamehub-prod-instance-status-check-failed` |
@@ -54,6 +54,11 @@ EventBridge ──5 min──▶ Lambda ──▶ CloudWatch Logs ──▶ synt
 - `Requests` counts every log line, `ServerErrors` counts `status >= 500`; the
   error ratio is a CloudWatch **metric math** expression on the dashboard
   (`ServerErrors / Requests`), not a metric filter, so neither side can drift.
+- The canary emits **one JSON line per run** and the alarm sums it: `1` means
+  "the run happened and both checks passed". A metric filter publishes its
+  default value (0) for every log event that does not match — including the
+  Lambda's own `START`/`END`/`REPORT` lines — so summing is the only statistic
+  that ignores the noise instead of averaging it in.
 - Latency is the nginx `$request_time`, which includes the upstream Express
   call — the number a user actually feels, not just the time spent in Node.
 - `TreatMissingData` is `breaching` only for the two availability alarms. For

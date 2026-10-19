@@ -35,7 +35,9 @@ if kubectl get deployment argocd-server -n argocd >/dev/null 2>&1; then
 else
     echo "==> installing Argo CD (${ARGO_VERSION})"
     kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-    kubectl apply -n argocd \
+    # --server-side: the applicationsets CRD's annotations exceed the 256 KiB
+    # limit of client-side apply's last-applied-configuration annotation.
+    kubectl apply --server-side -n argocd \
         -f "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGO_VERSION}/manifests/install.yaml" >/dev/null
 fi
 
@@ -48,13 +50,20 @@ kubectl apply -f k8s/argocd/application.yaml
 
 echo "==> waiting for the first sync (Argo CD is pulling the repo and reconciling)"
 for _ in $(seq 1 60); do
-    read -r sync health < <(
-        kubectl -n argocd get application gamehub \
-            -o jsonpath='{.status.sync.status} {.status.health.status}' 2>/dev/null \
-            || echo "Unknown Unknown"
-    )
-    printf '   sync=%-10s health=%s\n' "${sync:-Unknown}" "${health:-Unknown}"
-    [ "$sync" = "Synced" ] && [ "$health" = "Healthy" ] && break
+    # `read` from an empty process substitution returns non-zero, and with
+    # `set -e` that ended this script silently on the first poll (the
+    # Application has no status yet). Collect first, parse defensively.
+    out="$(kubectl -n argocd get application gamehub \
+        -o jsonpath='{.status.sync.status} {.status.health.status}' 2>/dev/null || true)"
+    sync="$(printf '%s' "$out" | awk '{print $1}')"
+    health="$(printf '%s' "$out" | awk '{print $2}')"
+    [ -n "$sync" ] || sync="Unknown"
+    [ -n "$health" ] || health="Unknown"
+
+    printf '   sync=%-10s health=%s\n' "$sync" "$health"
+    if [ "$sync" = "Synced" ] && [ "$health" = "Healthy" ]; then
+        break
+    fi
     sleep 5
 done
 

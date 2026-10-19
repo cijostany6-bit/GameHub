@@ -219,7 +219,11 @@ Resources:
             {
               "agent": {
                 "metrics_collection_interval": 60,
-                "run_as_user": "cwagent"
+                # Docker's json-file logs are 0640 root:root inside a 0710
+                # directory, so the agent must be root to read the container
+                # output it ships. The nginx log path underneath is world
+                # readable; container logs are the reason for this line.
+                "run_as_user": "root"
               },
               "metrics": {
                 "namespace": "CWAgent",

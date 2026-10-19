@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Step 3 — Real Playable Games ✅ (2026-10-19) · GameHub /learn</title>
+<meta name="description" content="A Futuristic Gaming Platform Built with AWS &amp; DevOps" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<div class="layout">
+  <aside class="sidebar">
+    <a class="brand" href="index.html">GAME<span>HUB</span></a>
+    <p class="sidebar-sub">/learn</p>
+    <nav class="nav" aria-label="Learning documents">
+      <ul>
+        <li><a href="index.html"><span class="nav-kind">HOME</span>All documents</a></li>
+        <li><a href="readme.html"><span class="nav-kind">OVERVIEW</span>GameHub</a></li>
+        <li><a href="step-0-reproducible-foundation.html"><span class="nav-kind">STEP 0</span>Step 0 — Reproducible Local Foundation ✅ (2026-10-18)</a></li>
+        <li><a href="step-1-tests-and-ci.html"><span class="nav-kind">STEP 1</span>Step 1 — Automated Tests + GitHub Actions CI ✅ (2026-10-18)</a></li>
+        <li><a href="step-2-gamey-ui.html"><span class="nav-kind">STEP 2</span>Step 2 — Game-y UI: Live Background + Self-Hosted Arcade Fonts ✅ (2026-10-18)</a></li>
+        <li><a href="step-3-real-games.html" class="is-active"><span class="nav-kind">STEP 3</span>Step 3 — Real Playable Games ✅ (2026-10-19)</a></li>
+        <li><a href="step-4-auth-and-live.html"><span class="nav-kind">STEP 4</span>Step 4 — Real Auth + Live on AWS ✅ (2026-10-19)</a></li>
+        <li><a href="step-5-observability.html"><span class="nav-kind">STEP 5</span>Step 5 — Observability ✅ (2026-10-19)</a></li>
+        <li><a href="step-8-learn-site.html"><span class="nav-kind">STEP 8</span>Step 8 — /learn Documentation Site + PDF Export ✅ (2026-10-19)</a></li>
+        <li><a href="runbook.html"><span class="nav-kind">DOC</span>Runbook — GameHub (prod)</a></li>
+        <li><a href="slo.html"><span class="nav-kind">DOC</span>Service level objectives — GameHub</a></li>
+      </ul>
+    </nav>
+    <div class="sidebar-foot">
+      <a class="btn btn-primary" href="gamehub-guide.pdf">Download the PDF</a>
+      <a class="btn btn-ghost" href="https://d2qf9zxehny6bk.cloudfront.net">Live demo</a>
+      <a class="btn btn-ghost" href="https://github.com/cijostany6-bit/GameHub">GitHub repo</a>
+    </div>
+  </aside>
+  <main id="content" class="content">
+    <div class="doc-meta">
+      <span class="chip">STEP 3</span>
+      <span class="chip chip-source">docs/step-3-real-games.md</span>
+    </div>
+    <article class="md">
+<h1 id="step-3-real-playable-games-2026-10-19">Step 3 — Real Playable Games ✅ (2026-10-19)</h1>
+<blockquote><p><strong>Verified by:</strong> 40 automated tests (19 backend + 21 frontend) · engine tests run the real game loops in Node · browser spot-checks on 4 engines + the 404 path · catalogue→runner click-through · <code>make smoke</code> 5/5 · CI full-stack job</p></blockquote>
+<h2 id="what-was-built">What was built</h2>
+<p><strong>Every one of the 12 catalogue entries now opens an actual, playable game.</strong> No placeholders, no alerts — a <code>play.html?id=&lt;n&gt;</code> runner that fetches the title, dispatches it to a real engine, and drives a READY → PLAYING → GAME OVER state machine with HUD, per-title high scores (localStorage) and controls help.</p>
+<div class="table-wrap"><table><thead><tr><th>Piece</th><th>Implementation</th><th>Why not the alternative</th></tr></thead><tbody><tr><td><strong>6 engines</strong> (<code>engines.js</code>)</td><td>snake · breakout · dodge (survival racing) · memory · reflex · pong — all plain canvas 2D, zero dependencies</td><td><em>12 bespoke games</em> → weeks of content work with no new DevOps signal; <em>one engine themed 12 ways</em> → dishonest (&quot;every game is snake&quot;); 6 engines × 2 titles is real variety at portfolio scale</td></tr><tr><td><strong>Title → engine mapping</strong></td><td><code>ENGINE_MAP</code> in <code>play.js</code> keyed by game <strong>name</strong> (a uniqueness contract already enforced by a backend integration test)</td><td><em>An <code>engine</code> DB column</em> → schema migration + <code>make db-reset</code> for a frontend concern; the name-uniqueness test already guards the invariant</td></tr><tr><td><strong>Coverage contract test</strong></td><td><code>mapping.test.js</code> parses the DB seed and <code>play.js</code> and fails CI if any seeded title lacks an engine (or vice versa)</td><td><em>Manual checking</em> → the promise &quot;every game is playable&quot; would silently rot the day someone adds a seed row</td></tr><tr><td><strong>Engine tests</strong></td><td>The real engines run in Node against a stubbed canvas/DOM (<code>vm</code> + Proxy ctx), driven frame-by-frame</td><td><em>Browser automation</em> → a hidden window never fires <code>requestAnimationFrame</code>; headless pixels are not behaviour. Frame-driving asserts real terminal paths (snake hits the wall, breakout runs out of lives, pong reaches 5)</td></tr><tr><td><strong><code>GET /api/games/:id</code></strong></td><td>Single-title endpoint with 404 for unknown <strong>and</strong> non-numeric ids (no crash, no leak)</td><td><em>Fetching the whole list</em> → the runner only needs one title; the endpoint is also the natural REST shape a reviewer looks for</td></tr></tbody></table></div>
+<h2 id="the-bugs-we-hit">The bugs we hit</h2>
+<ol><li><strong>The engine tests found a real gameplay stall.</strong> In breakout, a dead-centre paddle hit computes <code>vx = 0</code> → the ball bounces vertically forever on a stationary paddle and the game can never end. Fixed with a minimum horizontal component (<code>speed * 0.25</code>). A test that couldn't fail this way would have been a decoration.</li><li><strong><code>413</code> was missing.</strong> Oversized JSON bodies (body-parser's <code>entity.too.large</code>) fell through to the central 500 handler. Now: 413 with a clean body — and the fall-through path itself is covered by a test.</li><li><strong>The running container served the old API.</strong> <code>/api/games/1</code> returned the 404 handler because the backend container still ran the Phase 0 image; local <code>curl</code> against the <em>new</em> code hid it. Lesson: images are immutable — a route is not deployed until the image is rebuilt.</li></ol>
+<h2 id="concepts-to-understand-cold">Concepts to understand cold</h2>
+<ul><li><strong>Game loop fundamentals</strong>: fixed-step update + render, why <code>dt</code> clamping matters, and why input should be queued (snake buffers direction changes so a fast double-tap can't reverse the snake into itself)</li><li><strong>Testing graphics code without pixels</strong>: stub the context, drive frames, assert <em>state transitions</em> (score, lives, game over) — behaviour over pixels</li><li><strong>Contract tests as product promises</strong>: &quot;every catalogue entry is playable&quot; converted into a failing build when violated</li><li><strong>REST resource design</strong>: list vs detail, idempotent reads, honest 404s for malformed identifiers</li></ul>
+<h2 id="interview-questions-this-unlocks">Interview questions this unlocks</h2>
+<ol><li><em>&quot;How do you test canvas game logic in CI without a browser?&quot;</em></li><li><em>&quot;Your test suite can't fail — how do you know it's actually testing anything?&quot;</em> (the breakout stall is the answer)</li><li><em>&quot;Someone adds a 13th game to the seed — what stops the catalogue from shipping a dead entry?&quot;</em></li><li><em>&quot;Why did <code>curl</code> succeed while the browser got a 404?&quot;</em> (immutable images)</li></ol>
+    </article>
+    <footer class="page-footer">
+      <p>GameHub /learn — generated from <code>README.md</code> and <code>docs/*.md</code> by
+      <code>scripts/build-learn.js</code>. Fonts are self-hosted (OFL); this site makes no third-party requests.</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

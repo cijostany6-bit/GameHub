@@ -1,10 +1,12 @@
 # Step 6 — Local Kubernetes (kind) + Argo CD ✅ (2026-10-19)
 
-> **Verified by:** a real single-node kind cluster with the app running from
-> the same images as the Compose stack, `scripts/smoke.sh` passing against the
-> cluster's NodePort, and Argo CD reporting the `gamehub` Application as
-> `Synced`/`Healthy` with `selfHeal` putting a manually scaled Deployment back
-> to its declared replica count.
+> **Verified by:** a real single-node kind cluster (4 CPU / 6 GiB Colima VM) with
+> the app running from the same images as the Compose stack — `scripts/smoke.sh`
+> passing against the cluster's NodePort on `:8081` (12 games served from the
+> StatefulSet through the nginx proxy) — and Argo CD reporting the `gamehub`
+> Application as `Synced`/`Healthy` at the merged revision, with a manual
+> `kubectl scale --replicas=1` reverted to the declared 2 replicas by `selfHeal`
+> within 90 seconds.
 
 ## What was built
 
@@ -61,6 +63,18 @@ on Kubernetes, and can a controller keep it that way?".
    permitted)` in the container log — the pod was hardened straight into a
    crash, which is exactly why the capability list is now written down with its
    justification.
+9. **The Argo CD install needs `--server-side`.** `kubectl apply` of the release
+   manifest failed with `The CustomResourceDefinition "applicationsets.argoproj.io"
+   is invalid: metadata.annotations: Too long: may not be more than 262144
+   bytes` — client-side apply stores the previous configuration in an
+   annotation, and this CRD's own annotations blow past the limit. Server-side
+   apply stores nothing in the object.
+10. **`read` plus `set -e` is a trap in a wait loop.** `read -r a b < <(cmd)`
+   returns non-zero when `cmd` produces no output, and under `set -eu` that ends
+   the whole script — silently, on the first poll, while the Application has no
+   status yet. The wait loop now collects the output first and parses it
+   defensively, which is why the script prints its progress lines instead of
+   exiting after "waiting for the first sync".
 
 ## Concepts to understand cold
 

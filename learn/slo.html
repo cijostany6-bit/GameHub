@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Service level objectives — GameHub · GameHub /learn</title>
+<meta name="description" content="A Futuristic Gaming Platform Built with AWS &amp; DevOps" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<div class="layout">
+  <aside class="sidebar">
+    <a class="brand" href="index.html">GAME<span>HUB</span></a>
+    <p class="sidebar-sub">/learn</p>
+    <nav class="nav" aria-label="Learning documents">
+      <ul>
+        <li><a href="index.html"><span class="nav-kind">HOME</span>All documents</a></li>
+        <li><a href="readme.html"><span class="nav-kind">OVERVIEW</span>GameHub</a></li>
+        <li><a href="step-0-reproducible-foundation.html"><span class="nav-kind">STEP 0</span>Step 0 — Reproducible Local Foundation ✅ (2026-10-18)</a></li>
+        <li><a href="step-1-tests-and-ci.html"><span class="nav-kind">STEP 1</span>Step 1 — Automated Tests + GitHub Actions CI ✅ (2026-10-18)</a></li>
+        <li><a href="step-2-gamey-ui.html"><span class="nav-kind">STEP 2</span>Step 2 — Game-y UI: Live Background + Self-Hosted Arcade Fonts ✅ (2026-10-18)</a></li>
+        <li><a href="step-3-real-games.html"><span class="nav-kind">STEP 3</span>Step 3 — Real Playable Games ✅ (2026-10-19)</a></li>
+        <li><a href="step-4-auth-and-live.html"><span class="nav-kind">STEP 4</span>Step 4 — Real Auth + Live on AWS ✅ (2026-10-19)</a></li>
+        <li><a href="step-5-observability.html"><span class="nav-kind">STEP 5</span>Step 5 — Observability ✅ (2026-10-19)</a></li>
+        <li><a href="step-8-learn-site.html"><span class="nav-kind">STEP 8</span>Step 8 — /learn Documentation Site + PDF Export ✅ (2026-10-19)</a></li>
+        <li><a href="runbook.html"><span class="nav-kind">DOC</span>Runbook — GameHub (prod)</a></li>
+        <li><a href="slo.html" class="is-active"><span class="nav-kind">DOC</span>Service level objectives — GameHub</a></li>
+      </ul>
+    </nav>
+    <div class="sidebar-foot">
+      <a class="btn btn-primary" href="gamehub-guide.pdf">Download the PDF</a>
+      <a class="btn btn-ghost" href="https://d2qf9zxehny6bk.cloudfront.net">Live demo</a>
+      <a class="btn btn-ghost" href="https://github.com/cijostany6-bit/GameHub">GitHub repo</a>
+    </div>
+  </aside>
+  <main id="content" class="content">
+    <div class="doc-meta">
+      <span class="chip">DOC</span>
+      <span class="chip chip-source">docs/slo.md</span>
+    </div>
+    <article class="md">
+<h1 id="service-level-objectives-gamehub">Service level objectives — GameHub</h1>
+<blockquote><p>These are the numbers the project holds itself to, how each one is measured, and what happens when one is missed. They are deliberately modest: this is a single t3.micro instance in one availability zone, and an SLO that claims more than the architecture can deliver is a lie in a markdown file.</p></blockquote>
+<h2 id="1-objectives">1. Objectives</h2>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Objective</th><th>Target (rolling 30 days)</th><th>Measured by</th><th>Alarm</th></tr></thead><tbody><tr><td>SLO-1</td><td><strong>Availability</strong> — the public site answers <code>200</code></td><td>≥ 99.5 %</td><td>Synthetic check every 5 min from the Lambda canary (<code>SyntheticSuccess</code>)</td><td><code>gamehub-prod-synthetic-check-failed</code></td></tr><tr><td>SLO-2</td><td><strong>API availability</strong> — <code>/api/*</code> answers without a 5xx</td><td>≥ 99.5 %</td><td>nginx access log → metric filter (<code>ServerErrors</code> vs <code>Requests</code>)</td><td><code>gamehub-prod-http-5xx</code></td></tr><tr><td>SLO-3</td><td><strong>API latency</strong> — p99 of <code>/api/*</code> request time</td><td>≤ 1.5 s</td><td>nginx access log <code>request_time</code> → metric filter (<code>ApiRequestTimeSeconds</code>)</td><td><code>gamehub-prod-api-latency-p99</code></td></tr><tr><td>SLO-4</td><td><strong>Host health</strong> — instance status checks pass</td><td>no failing check for 2 min</td><td>EC2 <code>StatusCheckFailed</code></td><td><code>gamehub-prod-instance-status-check-failed</code></td></tr><tr><td>SLO-5</td><td><strong>Host capacity</strong> — CPU, memory and disk stay off the ceiling</td><td>CPU &lt; 85 % · memory &lt; 90 % · disk &lt; 85 %</td><td>EC2 metrics + CloudWatch agent (<code>CWAgent</code>)</td><td><code>gamehub-prod-cpu-high</code>, <code>gamehub-prod-memory-high</code>, <code>gamehub-prod-disk-high</code>, <code>gamehub-prod-cpu-credit-balance-low</code></td></tr></tbody></table></div>
+<p>Two things are intentionally <strong>not</strong> SLOs:</p>
+<ul><li><strong>Game frame rate</strong> and client-side errors — browser-only metrics, not observable from the server, so claiming a number for them would be theatre.</li><li><strong>Write durability of scores</strong> — the MySQL volume lives on the instance's EBS root volume. A single-instance topology cannot honestly promise more than &quot;the snapshot schedule in <code>infra/backend.yaml</code>&quot;.</li></ul>
+<h2 id="2-error-budgets">2. Error budgets</h2>
+<div class="table-wrap"><table><thead><tr><th>Objective</th><th>Budget per 30 days</th><th>What &quot;burning&quot; it means</th></tr></thead><tbody><tr><td>SLO-1 / SLO-2 availability ≥ 99.5 %</td><td>3 h 39 m of degraded service</td><td>One failed 5-minute synthetic check costs 0.03 % of the budget — 36 consecutive failures exhaust it</td></tr><tr><td>SLO-3 latency p99 ≤ 1.5 s</td><td>3 h 39 m of p99 above target</td><td>The alarm needs 2 consecutive 5-minute windows, so a single slow render is not a page</td></tr></tbody></table></div>
+<p>The budget is not a dashboard number to admire; it decides <strong>priority</strong>. While the budget is intact, new features ship. Once an alarm page is unexplained, the availability work comes first — which for this project means the next roadmap item is postponed, not parallelised.</p>
+<h2 id="3-how-the-numbers-are-actually-produced">3. How the numbers are actually produced</h2>
+<pre><code>browser ──▶ CloudFront ──▶ S3 (static site)
+                     └───▶ EC2 nginx ──▶ Express /api/*
+                              │
+                              ├─ JSON access log  ──▶ CloudWatch Logs ──▶ metric filters
+                              │            (status, request_time)          │
+                              │                                    CloudWatch metrics
+                              └─ CloudWatch agent ──▶ CWAgent            │
+                                     (mem, disk, swap)                  ▼
+EventBridge ──5 min──▶ Lambda ──▶ CloudWatch Logs ──▶ synthetic metrics ──▶ Alarms ──▶ SNS</code></pre>
+<ul><li>Availability and latency come from <strong>measured traffic and a synthetic check</strong>, never from the alarm configuration.</li><li><code>Requests</code> counts every log line, <code>ServerErrors</code> counts <code>status &gt;= 500</code>; the error ratio is a CloudWatch <strong>metric math</strong> expression on the dashboard (<code>ServerErrors / Requests</code>), not a metric filter, so neither side can drift.</li><li>Latency is the nginx <code>$request_time</code>, which includes the upstream Express call — the number a user actually feels, not just the time spent in Node.</li><li><code>TreatMissingData</code> is <code>breaching</code> only for the two availability alarms. For the synthetic check, silence means the checker itself died, which is a page.</li></ul>
+<h2 id="4-when-an-objective-is-missed">4. When an objective is missed</h2>
+<ol><li>The alarm fires to the <code>gamehub-prod-alarms</code> SNS topic (email subscription).</li><li>The on-call response is written down in <a href="runbook.md"><code>runbook.md</code></a> — one section per alarm, with the exact commands to look at, not advice to &quot;investigate&quot;.</li><li>If the miss was caused by a deploy, the rollback is <code>git revert</code> on <code>main</code>, which re-triggers the pipeline and republishes the previous commit. The container images are pinned to commits, so the previous version is one revert away.</li><li>If the miss was not caused by a deploy, the fix is a code or infra change on a branch, reviewed and merged like any other change — no hand-editing in the AWS console.</li></ol>
+    </article>
+    <footer class="page-footer">
+      <p>GameHub /learn — generated from <code>README.md</code> and <code>docs/*.md</code> by
+      <code>scripts/build-learn.js</code>. Fonts are self-hosted (OFL); this site makes no third-party requests.</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>
