@@ -792,6 +792,10 @@ Härtung des Live-Deployments:
   Prüfung der Homepage, aller 12 Katalogeinträge über die API, der Spieldetails per
   ID und dass ein nicht authentifiziertes `/api/me` `401` liefert — das Edge, nicht
   nur der Host
+- **Branch-Schutz auf `main`**: Die vier CI-Jobs sind erforderliche Status-Checks
+  im Strict-Modus, Administratoren sind nicht ausgenommen, Force-Pushes und das
+  Löschen des Branches sind deaktiviert, und ungelöste Konversationen blockieren
+  den Merge. Das Gate ist nur dann ein Gate, wenn der Merge selbst gegated ist
 
 ---
 

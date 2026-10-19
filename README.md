@@ -1,5 +1,7 @@
 # 🎮 GameHub
 
+> 🇬🇧 English version | 🇩🇪 [Deutsche Version](README.de.md)
+
 ### A Futuristic Gaming Platform Built with AWS & DevOps
 
 [![CI](https://github.com/cijostany6-bit/GameHub/actions/workflows/ci.yml/badge.svg)](https://github.com/cijostany6-bit/GameHub/actions/workflows/ci.yml)
