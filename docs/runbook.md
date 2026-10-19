@@ -201,3 +201,12 @@ additive (see `backend/schema.sql`), which is why it can be.
   `/gamehub/prod/app` (container stdout/stderr, JSON from Express).
 - **Audit:** CloudTrail records every `ssm:SendCommand`, so "who restarted the
   host at 03:00" has an answer.
+- **Post-deploy check:** the `verify` job in `deploy.yml` asserts the *public*
+  edge: the shell, `/learn/` and the PDF, the auth gate (401 without a token on
+  every protected route), and — signing in as `smoke-test@gamehub.example` — a
+  12-entry catalogue and an identified user. Its credentials are the repository
+  secrets `SMOKE_USER_EMAIL` / `SMOKE_USER_PASSWORD`; to rotate, run
+  `aws cognito-idp admin-set-user-password --user-pool-id "$COGNITO_USER_POOL_ID"
+  --username smoke-test@gamehub.example --password '<new>' --permanent` and
+  update both secrets. If a rotated credential is not uploaded, the job fails —
+  by design (see ADR-016).

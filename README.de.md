@@ -270,7 +270,7 @@ und einen CI-Lauf zurückführbar.
   Zeile als auch die Identität verschwunden sind — inklusive Aufräumen im
   Fehlerfall
 - **Architekturentscheidungen in einer Datei**: [`docs/decisions.md`](docs/decisions.md)
-  — 15 Entscheidungen in den Formen Kontext / Entscheidung / Konsequenzen /
+  — 16 Entscheidungen in den Formen Kontext / Entscheidung / Konsequenzen /
   verworfene Alternativen, jede mit Angabe dessen, was sie kostet
 
 ### 🚧 Nächstes (bewusst nicht begonnen)

@@ -344,3 +344,34 @@ stage or a different image), which is the intended trade.
 is not needed at runtime, so removing it beats excusing it); moving to a
 distroless base (attractive, but it removes the shell this project uses for
 `HEALTHCHECK` and for diagnosing the container).
+
+---
+
+## ADR-016
+
+**A post-deploy check must assert what production actually does**
+
+**Context.** The first version of the deploy's `verify` job fetched `/api/games`
+without a token and asserted 200 with 12 games. Against production it got 401 —
+the auth gate doing exactly its job — and failed the deploy. Nothing was wrong
+with the deployment: the check encoded an assumption that stopped being true
+when the catalogue moved behind the sign-in gate, and nothing re-examined the
+check when that happened. The identical wrong assumption appeared a second time,
+independently, in the load tool's success metric.
+
+**Decision.** Anonymous requests are asserted to be *refused* (401 on every
+protected route), and anything needing real data signs in as a dedicated smoke
+identity — `smoke-test@gamehub.example`, credentials in the repository secrets
+`SMOKE_USER_EMAIL` / `SMOKE_USER_PASSWORD` — and then uses that token exactly as
+a browser would. The check also covers `/learn/` and the PDF.
+
+**Consequences.** The green tick means "a player can do what a player does":
+edge, JWKS verification, database and docs, not merely "something answered". It
+depends on one Cognito identity and two repository secrets; if they are missing
+the job fails loudly, which is the right failure mode for a gate. A test that
+cannot fail for the right reason is not a test.
+
+**Rejected.** Making `/api/games` public again so the old assertion would pass
+(letting the check reshape the product); asserting only that the routes answer
+(a 401 and a 200 are both "answering" — the cheapest way to have a green check
+that proves nothing).
