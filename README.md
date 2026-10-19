@@ -573,7 +573,7 @@ AWS_REGION=$AWS_REGION ./scripts/deploy-frontend.sh
 # 6. Observability: log groups + retention, metrics from logs, the synthetic
 #    check, eight alarms and the dashboard. AlarmEmail is optional — without it
 #    the SNS topic is still created and can be subscribed later (see the
-#    TopicArn output), it just has no subscriber yet.
+#    AlarmTopicArn output), it just has no subscriber yet.
 aws cloudformation deploy --region "$AWS_REGION" \
   --stack-name gamehub-observability --template-file infra/observability.yaml \
   --capabilities CAPABILITY_NAMED_IAM \
