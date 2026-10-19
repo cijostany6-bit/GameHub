@@ -25,12 +25,18 @@ The project is being evolved into a production-style application: automated CI/C
 (email confirmation), sign in, and play. The landing page is public; the
 catalogue and the games require a signed-in player.
 
+**Documentation:** the step-by-step write-up, the ADRs and the runbook are
+published as a small static site at
+**<https://d2qf9zxehny6bk.cloudfront.net/learn/>**, with the whole guide as a
+printable PDF, and every claim in it traceable to a commit and a CI run.
+
 ---
 
 ## 📌 Project Status
 
-**Current phase:** Phase 7 — security hardening & GDPR ✅ (see
-[`docs/step-7-security-gdpr.md`](docs/step-7-security-gdpr.md))
+**Current phase:** Phase 8 — /learn documentation site, PDF & load test ✅ (see
+[`docs/step-8-learn-site.md`](docs/step-8-learn-site.md) and
+[`docs/load-test.md`](docs/load-test.md))
 
 **Status:** Full stack runs locally end-to-end: `make bootstrap` → seeded database, healthy containers, passing smoke tests. No cloud resources required.
 
@@ -224,9 +230,43 @@ catalogue and the games require a signed-in player.
   catalogue entries, game details, and a `401` from an unauthenticated
   `/api/me`
 
-### 🚧 Planned
+### ✅ Completed (Phase 8 — /learn documentation site, PDF, load test)
 
-- **Phase 8 — /learn documentation site, PDF export, load-test report**
+- **A documentation site generated from the repository**:
+  [`scripts/build-learn.js`](scripts/build-learn.js) (dependency-free, Node
+  built-ins only) renders `README.md` and every `docs/*.md` into `learn/` — a
+  landing page, one page per document, a print guide, and a hand-written Markdown
+  renderer with GitHub-style table support
+- **Published with the app**: `build-frontend.sh` copies `learn/` into the
+  deployable artifact, so the *same* CloudFront distribution serves the guide at
+  **`/learn/`** — no second bucket, no second CDN, and no chance of the docs
+  being deleted by the root sync
+- **A downloadable PDF**: `scripts/build-pdf.sh` prints the print-optimised
+  `learn/guide.html` through the browser already on the machine (A4 `@page` CSS),
+  producing `learn/gamehub-guide.pdf` for offline reading
+- **A CI drift check**: the generated site is committed, so the `manifests` job
+  regenerates it and fails on any diff, and asserts that every document has a
+  page — a generated artifact that is never checked is an artifact that goes
+  stale
+- **A load test with a real report**: [`scripts/load-test.js`](scripts/load-test.js)
+  (dependency-free, committed) drives a weighted mix of static, API and probe
+  traffic; [`docs/load-test.md`](docs/load-test.md) records the measured numbers
+  for a single `t3.micro` — including a deliberately pushed run, what the alarms
+  did, and an explicit list of what the test does **not** prove
+- **Erasure verified by a script, not by hand**: `scripts/verify-gdpr.sh` creates
+  a real Cognito user, stores a score, deletes the account through the public
+  API, and asserts that both the row and the identity are gone — cleaning up
+  after itself even when it fails
+- **Architecture decisions in one file**: [`docs/decisions.md`](docs/decisions.md)
+  — 15 decisions in context / decision / consequences / rejected form, each one
+  stating what it costs
+
+### 🚧 Next (deliberately not started)
+
+- A custom domain in front of CloudFront (certificate + DNS record; the
+  distribution already exists)
+- Moving the database to RDS (multi-AZ, automated backups, managed patching) —
+  the cost/ops trade-off `docs/decisions.md` ADR-002 records
 
 ---
 
@@ -446,6 +486,9 @@ make kind-up          # same app on a local Kubernetes cluster (kind) → :8081
 make argocd-up        # install Argo CD and sync the manifests from Git
 make k8s-dbinit       # re-render the Kubernetes DB seed ConfigMap
 make learn            # rebuild the /learn docs site and the PDF
+make migrate          # apply db/migrations to the running database
+make load-test SITE_URL=https://…   # dependency-free load test (see docs/load-test.md)
+make verify-gdpr      # verify account deletion end to end (needs a deployment)
 make help             # list all targets
 ```
 
@@ -885,7 +928,7 @@ Live deployment hardening:
 | **5** | Observability: structured logs, metrics from logs, synthetic check, 8 alarms, dashboard, SLOs, runbook | ✅ 2026-10-19 |
 | **6** | Local Kubernetes (kind) + Argo CD GitOps | ✅ 2026-10-19 |
 | **7** | Security & GDPR hardening: account deletion (art. 17) across DB + Cognito, SigV4 without an SDK, migrations with a checksum ledger, SBOM + image scanning, CI-gated deploys | ✅ 2026-10-19 |
-| **8** | /learn documentation site + PDF export + load-test report | Planned |
+| **8** | /learn documentation site + PDF export + load-test report | ✅ 2026-10-19 |
 
 ---
 

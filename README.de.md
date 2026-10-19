@@ -13,24 +13,32 @@ GameHub ist ein Portfolio-Projekt, das eine futuristische Gaming-Oberfläche mit
 
 Das Projekt wird zu einer Anwendung im Produktionsstil weiterentwickelt: automatisierte CI/CD, Infrastruktur als Code auf AWS, Monitoring und Kubernetes (lokaler kind-Cluster + Argo CD).
 
-> **Status — Phase 7 abgeschlossen (2026-10-19):** getestet, in CI, spielerisch,
-> spielbar und **live auf AWS**, beobachtbar, auf Kubernetes lauffähig — und jetzt
-> gehärtet. 84 automatisierte Tests, ein Cognito-Anmelde-Gate mit **funktionierender
-> Kontolöschung** (DSGVO Art. 17, in der App statt in einem Richtliniendokument),
-> ein zweisprachiger Datenschutzhinweis, eine SBOM + Image-Scanning in CI und
-> Deploys, die nur bei grünem CI für genau diesen Commit laufen. Alles als
-> CloudFormation beschrieben und per schlüssellosem GitHub-OIDC deployt.
+> **Status — Phase 8 abgeschlossen (2026-10-19):** getestet, in CI, spielerisch,
+> spielbar und **live auf AWS**, beobachtbar, auf Kubernetes lauffähig, gehärtet —
+> und dokumentiert. 84 automatisierte Tests, ein Cognito-Anmelde-Gate mit
+> **funktionierender Kontolöschung** (DSGVO Art. 17, in der App statt in einem
+> Richtliniendokument), ein zweisprachiger Datenschutzhinweis, eine SBOM +
+> Image-Scanning in CI, per CI-Gate gesicherte Deploys und eine
+> `t3.micro`-Lasttest-Messung. Alles als CloudFormation beschrieben und per
+> schlüssellosem GitHub-OIDC deployt.
 
 **Live-Demo:** <https://d2qf9zxehny6bk.cloudfront.net> — lege ein Konto an
 (E-Mail-Bestätigung), melde dich an und spiele. Die Landing Page ist öffentlich;
 der Katalog und die Spiele erfordern einen angemeldeten Spieler.
 
+**Dokumentation:** Die Schritt-für-Schritt-Dokumentation, die ADRs und das Runbook
+sind als statische Seite unter
+**<https://d2qf9zxehny6bk.cloudfront.net/learn/>** veröffentlicht, das komplette
+Handbuch zusätzlich als druckbares PDF — jede Aussage darin ist auf einen Commit
+und einen CI-Lauf zurückführbar.
+
 ---
 
 ## 📌 Projektstatus
 
-**Aktuelle Phase:** Phase 7 — Security-Härtung & DSGVO ✅ (siehe
-[`docs/step-7-security-gdpr.md`](docs/step-7-security-gdpr.md))
+**Aktuelle Phase:** Phase 8 — /learn-Dokumentationsseite, PDF & Lasttest ✅ (siehe
+[`docs/step-8-learn-site.md`](docs/step-8-learn-site.md) und
+[`docs/load-test.md`](docs/load-test.md))
 
 **Status:** Der Full Stack läuft lokal durchgängig: `make bootstrap` → befüllte Datenbank, gesunde Container, bestandene Smoke-Tests. Keine Cloud-Ressourcen erforderlich.
 
@@ -232,9 +240,46 @@ der Katalog und die Spiele erfordern einen angemeldeten Spieler.
   URL — Homepage-Markup, alle 12 Katalogeinträge, Spieldetails und ein `401` von
   einem nicht authentifizierten `/api/me`
 
-### 🚧 Geplant
+### ✅ Abgeschlossen (Phase 8 — /learn-Dokumentationsseite, PDF, Lasttest)
 
-- **Phase 8 — /learn-Dokumentationsseite, PDF-Export, Lasttest-Bericht**
+- **Eine aus dem Repository generierte Dokumentationsseite**:
+  [`scripts/build-learn.js`](scripts/build-learn.js) (abhängigkeitsfrei, nur
+  Node-Bordmittel) rendert `README.md` und jede `docs/*.md` nach `learn/` — eine
+  Landing Page, eine Seite pro Dokument und ein Druck-Handbuch, mit einem
+  selbstgeschriebenen Markdown-Renderer inklusive GitHub-Tabellen
+- **Zusammen mit der App veröffentlicht**: `build-frontend.sh` kopiert `learn/`
+  in das deploybare Artefakt, sodass **dieselbe** CloudFront-Distribution das
+  Handbuch unter **`/learn/`** ausliefert — kein zweiter Bucket, kein zweites CDN
+  und keine Chance, dass der Root-Sync die Doku versehentlich löscht
+- **Ein herunterladbares PDF**: `scripts/build-pdf.sh` druckt die
+  druckoptimierte `learn/guide.html` über den auf dem Rechner ohnehin
+  vorhandenen Browser (A4-`@page`-CSS) nach `learn/gamehub-guide.pdf`
+- **Ein CI-Drift-Check**: Die generierte Seite ist eingecheckt, also regeneriert
+  der `manifests`-Job sie und schlägt bei jeder Abweichung fehl — und prüft
+  zusätzlich, dass jedes Dokument eine Seite hat. Ein generiertes Artefakt, das
+  nie geprüft wird, veraltet
+- **Ein Lasttest mit echtem Bericht**: [`scripts/load-test.js`](scripts/load-test.js)
+  (abhängigkeitsfrei, eingecheckt) fährt einen gewichteten Mix aus statischem
+  Traffic, API und Probe; [`docs/load-test.md`](docs/load-test.md) hält die
+  gemessenen Zahlen für eine einzelne `t3.micro` fest — inklusive der
+  Server-Seite, des Cache-Verhaltens, dessen, was die Alarme getan haben, und
+  einer expliziten Liste dessen, was der Test **nicht** belegt
+- **Löschung durch ein Skript verifiziert, nicht per Hand**:
+  `scripts/verify-gdpr.sh` legt einen echten Cognito-Nutzer an, speichert einen
+  Score, löscht das Konto über die öffentliche API und prüft, dass sowohl die
+  Zeile als auch die Identität verschwunden sind — inklusive Aufräumen im
+  Fehlerfall
+- **Architekturentscheidungen in einer Datei**: [`docs/decisions.md`](docs/decisions.md)
+  — 15 Entscheidungen in den Formen Kontext / Entscheidung / Konsequenzen /
+  verworfene Alternativen, jede mit Angabe dessen, was sie kostet
+
+### 🚧 Nächstes (bewusst nicht begonnen)
+
+- Eine eigene Domain vor CloudFront (Zertifikat + DNS-Eintrag; die Distribution
+  existiert bereits)
+- Umzug der Datenbank auf RDS (Multi-AZ, automatische Backups, verwaltete
+  Patches) — der Kosten-/Betriebs-Kompromiss, den ADR-002 in
+  [`docs/decisions.md`](docs/decisions.md) festhält
 
 ---
 
@@ -455,6 +500,9 @@ make kind-up          # same app on a local Kubernetes cluster (kind) → :8081
 make argocd-up        # install Argo CD and sync the manifests from Git
 make k8s-dbinit       # re-render the Kubernetes DB seed ConfigMap
 make learn            # rebuild the /learn docs site and the PDF
+make migrate          # apply db/migrations to the running database
+make load-test SITE_URL=https://…   # dependency-free load test (see docs/load-test.md)
+make verify-gdpr      # verify account deletion end to end (needs a deployment)
 make help             # list all targets
 ```
 
@@ -904,7 +952,7 @@ Härtung des Live-Deployments:
 | **5** | Observability: strukturierte Logs, Metriken aus Logs, synthetischer Check, 8 Alarme, Dashboard, SLOs, Runbook | ✅ 2026-10-19 |
 | **6** | Lokales Kubernetes (kind) + Argo CD GitOps | ✅ 2026-10-19 |
 | **7** | Security- & DSGVO-Härtung: Kontolöschung (Art. 17) über DB + Cognito, SigV4 ohne SDK, Migrationen mit Prüfsummen-Ledger, SBOM + Image-Scanning, CI-gated Deploys | ✅ 2026-10-19 |
-| **8** | /learn-Dokumentationsseite + PDF-Export + Lasttest-Bericht | Geplant |
+| **8** | /learn-Dokumentationsseite + PDF-Export + Lasttest-Bericht | ✅ 2026-10-19 |
 
 ---
 

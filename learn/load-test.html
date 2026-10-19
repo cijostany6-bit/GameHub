@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Load test — what a single t3.micro actually does ✅ (2026-10-19) · GameHub /learn</title>
+<meta name="description" content="A Futuristic Gaming Platform Built with AWS &amp; DevOps" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<div class="layout">
+  <aside class="sidebar">
+    <a class="brand" href="index.html">GAME<span>HUB</span></a>
+    <p class="sidebar-sub">/learn</p>
+    <nav class="nav" aria-label="Learning documents">
+      <ul>
+        <li><a href="index.html"><span class="nav-kind">HOME</span>All documents</a></li>
+        <li><a href="readme.html"><span class="nav-kind">OVERVIEW</span>GameHub</a></li>
+        <li><a href="step-0-reproducible-foundation.html"><span class="nav-kind">STEP 0</span>Step 0 — Reproducible Local Foundation ✅ (2026-10-18)</a></li>
+        <li><a href="step-1-tests-and-ci.html"><span class="nav-kind">STEP 1</span>Step 1 — Automated Tests + GitHub Actions CI ✅ (2026-10-18)</a></li>
+        <li><a href="step-2-gamey-ui.html"><span class="nav-kind">STEP 2</span>Step 2 — Game-y UI: Live Background + Self-Hosted Arcade Fonts ✅ (2026-10-18)</a></li>
+        <li><a href="step-3-real-games.html"><span class="nav-kind">STEP 3</span>Step 3 — Real Playable Games ✅ (2026-10-19)</a></li>
+        <li><a href="step-4-auth-and-live.html"><span class="nav-kind">STEP 4</span>Step 4 — Real Auth + Live on AWS ✅ (2026-10-19)</a></li>
+        <li><a href="step-5-observability.html"><span class="nav-kind">STEP 5</span>Step 5 — Observability ✅ (2026-10-19)</a></li>
+        <li><a href="step-6-kubernetes-gitops.html"><span class="nav-kind">STEP 6</span>Step 6 — Local Kubernetes (kind) + Argo CD ✅ (2026-10-19)</a></li>
+        <li><a href="step-7-security-gdpr.html"><span class="nav-kind">STEP 7</span>Step 7 — Security hardening &amp; GDPR ✅ (2026-10-19)</a></li>
+        <li><a href="step-8-learn-site.html"><span class="nav-kind">STEP 8</span>Step 8 — /learn Documentation Site + PDF Export ✅ (2026-10-19)</a></li>
+        <li><a href="decisions.html"><span class="nav-kind">DOC</span>Architecture decisions (ADRs)</a></li>
+        <li><a href="load-test.html" class="is-active"><span class="nav-kind">DOC</span>Load test — what a single t3.micro actually does ✅ (2026-10-19)</a></li>
+        <li><a href="runbook.html"><span class="nav-kind">DOC</span>Runbook — GameHub (prod)</a></li>
+        <li><a href="slo.html"><span class="nav-kind">DOC</span>Service level objectives — GameHub</a></li>
+      </ul>
+    </nav>
+    <div class="sidebar-foot">
+      <a class="btn btn-primary" href="gamehub-guide.pdf">Download the PDF</a>
+      <a class="btn btn-ghost" href="https://d2qf9zxehny6bk.cloudfront.net">Live demo</a>
+      <a class="btn btn-ghost" href="https://github.com/cijostany6-bit/GameHub">GitHub repo</a>
+    </div>
+  </aside>
+  <main id="content" class="content">
+    <div class="doc-meta">
+      <span class="chip">DOC</span>
+      <span class="chip chip-source">docs/load-test.md</span>
+    </div>
+    <article class="md">
+<h1 id="load-test-what-a-single-t3-micro-actually-does-2026-10-19">Load test — what a single t3.micro actually does ✅ (2026-10-19)</h1>
+<blockquote><p><strong>Verified by:</strong> two runs of <a href="../scripts/load-test.js"><code>scripts/load-test.js</code></a> against the live deployment on 2026-10-19 at 09:35–09:36 UTC (4,000 requests total), with the <strong>origin-side</strong> numbers read back from the app's own request log (<code>/gamehub/prod/app</code>) and nginx's access log (<code>/gamehub/prod/nginx-access</code>) in CloudWatch, and the instance's CPU, memory and all eight alarm states read back from CloudWatch for the same window.</p></blockquote>
+<h2 id="why-this-exists-and-what-it-is-not">Why this exists, and what it is not</h2>
+<p>A load test is only useful if it is honest about what it measured. This one was built to answer a narrow question — <em>does a two-vCPU burstable instance with a containerised MySQL comfortably serve this application?</em> — and it deliberately does <strong>not</strong> try to find the breaking point.</p>
+<p>Three things make the result trustworthy rather than flattering:</p>
+<ol><li><strong>Three vantage points, not one.</strong> The client measures end-to-end latency (which, from a home connection, is mostly <em>the network</em>). nginx's <code>request_time</code> measures what the origin spent. The backend logs its own <code>duration_ms</code> per request, which is the handler alone. Reporting only the first number would have said &quot;180 ms per request&quot; and meant almost nothing.</li><li><strong>The mix is weighted and declared.</strong> 50 % static site (<code>/</code>, served by CloudFront), 30 % API list (<code>/api/games</code>, a database read), 20 % liveness (<code>/api/health</code>, no database). The weights are in the script.</li><li><strong>Each endpoint declares its expected status.</strong> 401 from the gated catalogue route is the auth gate working, not an error — so the anonymous run scores 401 as <em>expected</em>, and a 200 there would be the finding. Without that, the first run &quot;failed&quot; with a 70 % success rate while the system was perfect.</li></ol>
+<h2 id="the-client-s-view">The client's view</h2>
+<p>Run A is anonymous (the catalogue answers 401); Run B carries a real ID token, so <code>/api/games</code> reaches MySQL. Both: 2,000 requests, concurrency 20, keep-alive, one client.</p>
+<h3 id="run-a-anonymous-the-edge-and-the-gate">Run A — anonymous (the edge and the gate)</h3>
+<ul><li><strong>Target:</strong> <code>https://d2qf9zxehny6bk.cloudfront.net</code></li><li><strong>Duration:</strong> 19.17 s · <strong>Throughput:</strong> 104.32 req/s</li><li><strong>Responses as expected:</strong> 100 % · <strong>Unexpected:</strong> 0 · <strong>Connection errors:</strong> 0</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Latency</th><th>ms</th></tr></thead><tbody><tr><td>min</td><td>161.19</td></tr><tr><td>mean</td><td>190.78</td></tr><tr><td>p50</td><td>180.25</td></tr><tr><td>p90</td><td>193.81</td></tr><tr><td>p95</td><td>234.46</td></tr><tr><td>p99</td><td>348.87</td></tr><tr><td>max</td><td>1103.22</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Endpoint</th><th>Requests</th><th>p50 (ms)</th><th>p95 (ms)</th><th>Expected</th><th>Unexpected</th></tr></thead><tbody><tr><td><code>/</code></td><td>1000</td><td>186.08</td><td>242.57</td><td>200</td><td>0</td></tr><tr><td><code>/api/games</code></td><td>600</td><td>174.52</td><td>193.52</td><td>401</td><td>0</td></tr><tr><td><code>/api/health</code></td><td>400</td><td>177.31</td><td>233.69</td><td>200</td><td>0</td></tr></tbody></table></div>
+<p>Status distribution: <code>{&quot;200&quot;: 1400, &quot;401&quot;: 600}</code>.</p>
+<h3 id="run-b-authenticated-the-database-path-is-exercised">Run B — authenticated (the database path is exercised)</h3>
+<ul><li><strong>Duration:</strong> 19.19 s · <strong>Throughput:</strong> 104.23 req/s</li><li><strong>Responses as expected:</strong> 100 % · <strong>Unexpected:</strong> 0 · <strong>Connection errors:</strong> 0</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Latency</th><th>ms</th></tr></thead><tbody><tr><td>min</td><td>159.34</td></tr><tr><td>mean</td><td>190.73</td></tr><tr><td>p50</td><td>181.47</td></tr><tr><td>p90</td><td>195.34</td></tr><tr><td>p95</td><td>234.48</td></tr><tr><td>p99</td><td>265.04</td></tr><tr><td>max</td><td>932.88</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Endpoint</th><th>Requests</th><th>p50 (ms)</th><th>p95 (ms)</th><th>Expected</th><th>Unexpected</th></tr></thead><tbody><tr><td><code>/</code></td><td>1000</td><td>184.77</td><td>242.28</td><td>200</td><td>0</td></tr><tr><td><code>/api/games</code></td><td>600</td><td>178.04</td><td>230.18</td><td>200</td><td>0</td></tr><tr><td><code>/api/health</code></td><td>400</td><td>177.97</td><td>232.75</td><td>200</td><td>0</td></tr></tbody></table></div>
+<p>Status distribution: <code>{&quot;200&quot;: 2000}</code>.</p>
+<p><strong>Read these numbers carefully: they are dominated by one client's network.</strong> The distance from the test machine to the nearest CloudFront edge is ~175 ms, so ~180 ms of every request is travel time, not work. Comparing the two runs shows this plainly: adding a <strong>real database read</strong> to 600 requests changed p50 by 1.2 ms and p95 not at all. The origin's own numbers below are the meaningful ones.</p>
+<h2 id="the-origin-s-view">The origin's view</h2>
+<p>nginx logs <code>request_time</code> in <strong>seconds</strong> (the tables below are converted to milliseconds), and the backend logs <code>duration_ms</code> per request.</p>
+<h3 id="run-a-anonymous">Run A — anonymous</h3>
+<div class="table-wrap"><table><thead><tr><th>What</th><th>n</th><th>avg (ms)</th><th>p50 (ms)</th><th>p95 (ms)</th><th>p99 (ms)</th><th>max (ms)</th></tr></thead><tbody><tr><td>nginx: <code>/api/games</code> → 401</td><td>599</td><td>1.00</td><td>1.00</td><td>2.00</td><td>7.00</td><td>14.00</td></tr><tr><td>nginx: <code>/api/health</code> → 200</td><td>400</td><td>1.00</td><td>1.00</td><td>2.00</td><td>3.00</td><td>12.00</td></tr><tr><td>backend: <code>/api/health</code> handler</td><td>401</td><td>0.456</td><td>0.400</td><td>0.700</td><td>1.200</td><td>2.600</td></tr><tr><td>nginx: <code>/</code> (static)</td><td><strong>0</strong></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr></tbody></table></div>
+<h3 id="run-b-authenticated">Run B — authenticated</h3>
+<div class="table-wrap"><table><thead><tr><th>What</th><th>n</th><th>avg (ms)</th><th>p50 (ms)</th><th>p95 (ms)</th><th>p99 (ms)</th><th>max (ms)</th></tr></thead><tbody><tr><td>nginx: <code>/api/games</code> (proxied, DB read)</td><td>600</td><td>2.00</td><td>2.00</td><td>4.00</td><td>10.00</td><td>28.00</td></tr><tr><td>nginx: <code>/api/health</code></td><td>400</td><td>1.00</td><td>1.00</td><td>2.00</td><td>6.00</td><td>13.00</td></tr><tr><td>backend: <code>/api/games</code> handler (DB read)</td><td>600</td><td>1.242</td><td>1.000</td><td>1.900</td><td>4.000</td><td>22.300</td></tr><tr><td>backend: <code>/api/health</code> handler</td><td>403</td><td>0.438</td><td>0.400</td><td>0.500</td><td>1.500</td><td>6.800</td></tr><tr><td>nginx: <code>/</code> (static)</td><td><strong>0</strong></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr></tbody></table></div>
+<p>Three things stand out:</p>
+<ul><li><strong>The static half never touched the origin.</strong> 2,000 of the 2,000 <code>/</code> requests across both runs were served from the CloudFront cache — no nginx entry exists for them. Half of the traffic mix cost the instance nothing.</li><li><strong>A database read costs about a millisecond.</strong> <code>SELECT id, name, category, description FROM games ORDER BY id</code> over 12 rows: p50 1.0 ms, p99 4.0 ms, max 22.3 ms across 600 requests. The proxy adds roughly another millisecond.</li><li><strong>The client saw ~180 ms while the origin spent ~2 ms.</strong> Roughly 99 % of the measured latency is the path between the test machine and the edge.</li></ul>
+<h2 id="the-instance-while-it-was-being-hit">The instance while it was being hit</h2>
+<div class="table-wrap"><table><thead><tr><th>Metric</th><th>Baseline</th><th>During the runs</th></tr></thead><tbody><tr><td>EC2 <code>CPUUtilization</code> (1-min max)</td><td>~2.7 %</td><td>4.55 %, peak <strong>6.97 %</strong></td></tr><tr><td><code>mem_used_percent</code></td><td>~41.6 %</td><td>42.0 – 43.2 %</td></tr><tr><td>Instances with a state change</td><td>—</td><td>none</td></tr></tbody></table></div>
+<p>CPU peaked at <strong>7 %</strong> while the origin absorbed ~52 requests per second (1,000 origin-bound requests per run over 19 s) with DB-backed p95 at 2 ms. The test does not find this instance's limit; it does not come close to it.</p>
+<p>The write path was measured separately, during the Phase 7 verification, and is the only place where the app talks to AWS:</p>
+<div class="table-wrap"><table><thead><tr><th>Request</th><th>n</th><th>avg (ms)</th><th>max (ms)</th><th>What dominates</th></tr></thead><tbody><tr><td><code>POST /api/scores</code></td><td>2</td><td>79.65</td><td>149.30</td><td>MySQL upsert + round trip</td></tr><tr><td><code>DELETE /api/me</code></td><td>1</td><td>239.30</td><td>239.30</td><td>the SigV4 <code>AdminDeleteUser</code> call to Cognito</td></tr></tbody></table></div>
+<p>That is the honest shape of the system: reads are ~1 ms, and anything that crosses into a control-plane API costs hundreds of milliseconds.</p>
+<h2 id="what-the-alarms-did">What the alarms did</h2>
+<p><strong>Nothing — and that is the correct result.</strong> All eight alarms stayed <code>OK</code>, and CloudWatch reports <strong>no alarm state change in the 45 minutes around the runs</strong>:</p>
+<div class="table-wrap"><table><thead><tr><th>Alarm</th><th>State during/after the runs</th></tr></thead><tbody><tr><td><code>gamehub-prod-synthetic-check-failed</code></td><td>OK</td></tr><tr><td><code>gamehub-prod-http-5xx</code></td><td>OK</td></tr><tr><td><code>gamehub-prod-api-latency-p99</code></td><td>OK</td></tr><tr><td><code>gamehub-prod-instance-status-check-failed</code></td><td>OK</td></tr><tr><td><code>gamehub-prod-cpu-high</code></td><td>OK</td></tr><tr><td><code>gamehub-prod-cpu-credit-balance-low</code></td><td>OK</td></tr><tr><td><code>gamehub-prod-memory-high</code></td><td>OK</td></tr><tr><td><code>gamehub-prod-disk-high</code></td><td>OK</td></tr></tbody></table></div>
+<p>Two successor questions follow from this, and both are answered elsewhere: <em>would the alarms fire if the instance were actually struggling?</em> — the alarm path was exercised and the thresholds verified separately in <a href="step-5-observability.md"><code>docs/step-5-observability.md</code></a>; and <em>is the latency alarm measuring the right thing?</em> — it watches the origin's <code>request_time</code> metric, not the client's end-to-end time, which is why a slow client link (this test) does not page anyone.</p>
+<h2 id="what-this-does-not-prove">What this does NOT prove</h2>
+<ul><li><strong>One client, one location.</strong> Concurrency 20 from a single machine is not distributed load; CDN edge performance for a user in another country is untested.</li><li><strong>No saturation point.</strong> Neither run pushed CPU past 7 %, so the numbers say &quot;comfortable at this level&quot;, not &quot;this is the ceiling&quot;.</li><li><strong>A burstable instance is burstable.</strong> The <code>t3.micro</code> earns CPU credits while idle and spends them under load. A 19-second burst is exactly what the family is designed for; a <em>sustained</em> load test is a different experiment, and the <code>gamehub-prod-cpu-credit-balance-low</code> alarm exists because of it.</li><li><strong>A warm static cache.</strong> The static half of the mix was a cache hit throughout. A cold-cache storm is a CloudFront capacity question, not an instance one, and is not covered here.</li><li><strong>The write path is sampled, not load-tested.</strong> Two <code>POST /api/scores</code> and one <code>DELETE /api/me</code> are enough to characterise one request, not to make a claim about write throughput.</li><li><strong>No adversarial traffic.</strong> No rate limiting, no abuse pattern, no large payloads — those belong to a security review, not a capacity one.</li></ul>
+<h2 id="cost">Cost</h2>
+<p>4,000 requests from CloudFront plus ~2,000 origin-bound requests and a few hundred kilobytes of transfer. CloudFront's free tier is 1 TB and 10 million requests per month; the instance is billed whether it is busy or idle. The marginal cost of this test was <strong>effectively zero</strong>, and nothing here approaches a paid tier.</p>
+<h2 id="reproduce-it">Reproduce it</h2>
+<pre><code class="language-bash">make load-test SITE_URL=https://d2qf9zxehny6bk.cloudfront.net REQUESTS=2000 CONCURRENCY=20
+
+# authenticated (the API then reaches MySQL); get an ID token first, e.g. with
+# scripts/verify-gdpr.sh's sign-in steps, then:
+node scripts/load-test.js --url &quot;$SITE_URL&quot; --requests 2000 --concurrency 20 --token &quot;$ID_TOKEN&quot;
+
+# the origin's side of the same window:
+aws logs filter-log-events --log-group-name /gamehub/prod/app \
+  --filter-pattern '&quot;duration_ms&quot;' --start-time &lt;epoch-ms&gt; --end-time &lt;epoch-ms&gt;
+aws logs filter-log-events --log-group-name /gamehub/prod/nginx-access \
+  --start-time &lt;epoch-ms&gt; --end-time &lt;epoch-ms&gt;</code></pre>
+    </article>
+    <footer class="page-footer">
+      <p>GameHub /learn — generated from <code>README.md</code> and <code>docs/*.md</code> by
+      <code>scripts/build-learn.js</code>. Fonts are self-hosted (OFL); this site makes no third-party requests.</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

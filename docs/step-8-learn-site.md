@@ -2,9 +2,11 @@
 
 > **Verified by:** `node scripts/build-learn.js` run twice in a row (identical
 > output, no drift) · one page per source document plus a landing page and the
-> print guide · `./scripts/build-pdf.sh` rendering `learn/gamehub-guide.pdf`
-> through headless Chrome · a spot-check that the GitHub-style tables in the
-> step notes render as real tables, not pipe soup
+> print guide (13 documents + README → 15 pages) · `./scripts/build-pdf.sh`
+> rendering `learn/gamehub-guide.pdf` through headless Chrome · a spot-check that
+> the GitHub-style tables in the step notes render as real tables, not pipe soup
+> · the CI drift check detecting a stale site when a one-line README edit is not
+> regenerated, and passing on the committed `learn/`.
 
 ## What was built
 
@@ -68,19 +70,31 @@ site shows.
 
 ## How `/learn/` is served
 
-The site is plain static files with relative references, so it can be published
+The site is plain static files with relative references, so it is published
 under the `learn/` prefix of the *same* S3 bucket that serves the app, and the
 *same* CloudFront distribution serves it at `<distribution>/learn/` — no second
 bucket, no second CDN, no new origin. CloudFront already knows how to serve
 objects the bucket does not make public (private bucket + Origin Access
 Control), so the documentation inherits that.
 
-One honest caveat: `scripts/deploy-frontend.sh` publishes the app to the bucket
-**root** with `--delete` (and a versioned-asset cache split). A `learn/` tree is
-therefore a separate, prefix-scoped sync rather than something that script does
-today — a delete-sync of the root would remove it. The generator emits
-everything the publish step needs; wiring that sync (and a `/learn/` CloudFront
-behaviour, if it needs different caching) is the remaining deploy-side job.
+`scripts/build-frontend.sh` copies `learn/` into `build/frontend/learn/`, so the
+deploy's root sync (which uses `--delete`) publishes the docs and keeps them:
+the prefix is part of the artifact being synced on every build, which is why no
+separate prefix-scoped sync is needed and why a delete-sync of the root cannot
+remove the docs by accident.
+
+Two guards keep the published site truthful:
+
+- **A drift check in CI**: the `manifests` job re-runs the generator and fails on
+  any diff against the committed `learn/`, and asserts that every document in
+  `README.md` and `docs/*.md` has a page. A generated artifact that is committed
+  and never checked is a generated artifact that goes stale — and this one
+  already had, when `README.de.md` and the step notes were committed without
+  regenerating it.
+- **The PDF is excluded from that comparison**, because it is rendered by a
+  headless browser and is not byte-reproducible on a runner. `make learn`
+  regenerates the site and the PDF together, and the deploy publishes whatever
+  is committed.
 
 ## Interview questions this unlocks
 

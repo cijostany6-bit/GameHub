@@ -145,10 +145,19 @@ Resources:
       SecurityGroupIds:
         - !Ref AppSecurityGroup
       # IMDSv2 only, as AWS recommends.
+      #
+      # The hop limit is 2, not the default 1, because the application
+      # runs inside a Docker container: a request from the container
+      # reaches the metadata service with one hop used up by the bridge
+      # network, so the default drops it. The symptom is not a clear
+      # error — IMDS simply never answers and the SDK-less client
+      # reports `fetch failed` after a long connect timeout, which
+      # turns into a 504 at the CDN. Found by the live erasure check
+      # (scripts/verify-gdpr.sh); see docs/step-7-security-gdpr.md.
       MetadataOptions:
         HttpEndpoint: enabled
         HttpTokens: required
-        HttpPutResponseHopLimit: 1
+        HttpPutResponseHopLimit: 2
       BlockDeviceMappings:
         - DeviceName: /dev/xvda
           Ebs:

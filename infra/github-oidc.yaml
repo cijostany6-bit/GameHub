@@ -111,11 +111,16 @@ Resources:
                   - s3:PutObject
                   - s3:DeleteObject
                 Resource: !Sub arn:aws:s3:::${SiteBucketName}/*
-              - Sid: InvalidateCache
+              - Sid: ReadAndInvalidateDistribution
                 Effect: Allow
                 Action:
                   - cloudfront:CreateInvalidation
                   - cloudfront:GetInvalidation
+                  # The deploy's verification job resolves the public
+                  # hostname from the distribution instead of hard-coding
+                  # it in a repository variable — one source of truth,
+                  # and it cannot point at a distribution we do not own.
+                  - cloudfront:GetDistribution
                 Resource: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${DistributionId}
               # --- restart the app host over SSM ---
               - Sid: DeployOverSsm
