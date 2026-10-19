@@ -15,7 +15,6 @@
 const { describe, it, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
-const crypto = require("node:crypto");
 
 const cognito = require("../cognito");
 

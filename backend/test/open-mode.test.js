@@ -48,7 +48,7 @@ before(async () => {
             )
         ]);
         dbAvailable = true;
-    } catch (_error) {
+    } catch {
         dbAvailable = false;
     }
 
