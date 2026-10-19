@@ -213,3 +213,13 @@ additive (see `backend/schema.sql`), which is why it can be.
   --username smoke-test@gamehub.example --password '<new>' --permanent` and
   update both secrets. If a rotated credential is not uploaded, the job fails —
   by design (see ADR-016).
+- **Alarm notifications:** the topic has **one subscribed address** — the project
+  owner's, passed to the observability stack as the `AlarmEmail` parameter, so
+  CloudFormation owns the subscription and a manual `aws sns subscribe` would be
+  drift. To change the recipient, re-deploy the stack with a different
+  `AlarmEmail` and accept the confirmation mail: until it is accepted the
+  subscription sits in `PendingConfirmation` and delivers nothing, which looks
+  exactly like "the alarms are quiet tonight". Check it with
+  `aws sns list-subscriptions-by-topic --topic-arn <AlarmTopicArn output>`.
+  A subscription that was created and never confirmed is the failure mode to
+  look for first when someone says alerts are not arriving.
