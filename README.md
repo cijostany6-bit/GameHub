@@ -771,6 +771,10 @@ Live deployment hardening:
   checking the homepage, all 12 catalogue entries through the API, game details
   by id, and that an unauthenticated `/api/me` returns `401` — the edge, not just
   the host
+- **Branch protection on `main`**: the four CI jobs are required status checks in
+  strict mode, administrators are not exempt, force-pushes and branch deletion
+  are disabled, and unresolved conversations block the merge. The gate is only a
+  gate if the merge itself is gated
 
 ---
 

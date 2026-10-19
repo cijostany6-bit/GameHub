@@ -83,8 +83,13 @@ repository.
     image* (a package can be added by the base image), `npm audit`, an SPDX SBOM
     kept as a build artifact, and Dependabot for npm, Actions and base images.
 12. **Branch protection makes the gate real.** The deploy is CI-gated, but CI is
-    only a gate if the merge itself is gated: required status checks, no direct
-    pushes to `main`, no force-push.
+    only a gate if the merge itself is gated. On `main`: the four CI jobs are
+    required status checks with *strict* mode (the branch must be up to date),
+    administrators are **not** exempt, force-pushes and deletion are disabled,
+    and unresolved review conversations block the merge. A required human
+    approval is deliberately absent — this is a one-person repository, and a
+    rule that GitHub refuses to satisfy (you cannot approve your own pull
+    request) is a rule that gets disabled the first time it is inconvenient.
 
 ## Concepts to understand cold
 

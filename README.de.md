@@ -6,16 +6,19 @@
 
 [![CI](https://github.com/cijostany6-bit/GameHub/actions/workflows/ci.yml/badge.svg)](https://github.com/cijostany6-bit/GameHub/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Tests](https://img.shields.io/badge/tests-64%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-84%20passing-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-%E2%89%A580%25%20gated-blue)
 
 GameHub ist ein Portfolio-Projekt, das eine futuristische Gaming-Oberfläche mit einem containerisierten Node.js-Backend und einer MySQL-Datenbank kombiniert — alles lokal mit einem einzigen Befehl lauffähig. Es zeigt, wie Frontend-Anwendungen, Backend-APIs, Container-Netzwerke, Reverse Proxies, Datenbanken, Tests und CI-Pipelines zusammenspielen.
 
 Das Projekt wird zu einer Anwendung im Produktionsstil weiterentwickelt: automatisierte CI/CD, Infrastruktur als Code auf AWS, Monitoring und Kubernetes (lokaler kind-Cluster + Argo CD).
 
-> **Status — Phase 4 abgeschlossen (2026-10-19):** getestet, in CI, spielerisch,
-> spielbar und **live auf AWS**. 64 automatisierte Tests, ein Cognito-Anmelde-Gate,
-> die statische Website auf S3 + CloudFront, die API auf EC2, alles als
+> **Status — Phase 7 abgeschlossen (2026-10-19):** getestet, in CI, spielerisch,
+> spielbar und **live auf AWS**, beobachtbar, auf Kubernetes lauffähig — und jetzt
+> gehärtet. 84 automatisierte Tests, ein Cognito-Anmelde-Gate mit **funktionierender
+> Kontolöschung** (DSGVO Art. 17, in der App statt in einem Richtliniendokument),
+> ein zweisprachiger Datenschutzhinweis, eine SBOM + Image-Scanning in CI und
+> Deploys, die nur bei grünem CI für genau diesen Commit laufen. Alles als
 > CloudFormation beschrieben und per schlüssellosem GitHub-OIDC deployt.
 
 **Live-Demo:** <https://d2qf9zxehny6bk.cloudfront.net> — lege ein Konto an
@@ -26,7 +29,8 @@ der Katalog und die Spiele erfordern einen angemeldeten Spieler.
 
 ## 📌 Projektstatus
 
-**Aktuelle Phase:** Phase 0 — reproduzierbare lokale Grundlage ✅
+**Aktuelle Phase:** Phase 7 — Security-Härtung & DSGVO ✅ (siehe
+[`docs/step-7-security-gdpr.md`](docs/step-7-security-gdpr.md))
 
 **Status:** Der Full Stack läuft lokal durchgängig: `make bootstrap` → befüllte Datenbank, gesunde Container, bestandene Smoke-Tests. Keine Cloud-Ressourcen erforderlich.
 
@@ -40,7 +44,7 @@ der Katalog und die Spiele erfordern einen angemeldeten Spieler.
 - Node.js- und Express-Backend
 - **Lokaler MySQL-8.4-Container** mit Schema + Seed (`db/init.sql`) — reproduzierbar auf jeder Maschine, kein Cloud-Konto nötig
 - **Connection Pool** (keine Verbindung pro Anfrage), **Trennung von Liveness/Readiness** (`/api/health` vs. `/api/ready`), strukturierte JSON-Logs, CORS auf explizite Origins beschränkt, generische Fehler gegenüber Clients
-- Dockerisiertes Frontend und Backend mit **gepinnten Basis-Images**, `npm ci` aus der Lockfile, **0 npm-Schwachstellen**, Backend läuft als **Non-Root**
+- Dockerisiertes Frontend und Backend auf dem **Alpine-Stable-Kanal** (von Dependabot verfolgt, zur Build-Zeit mit Security-Patches versorgt), `npm ci` aus der Lockfile, **0 npm-Schwachstellen**, Backend läuft als **Non-Root**
 - Docker-Compose-Orchestrierung mit **Healthchecks + geordnetem Start**
 - Nginx-Reverse-Proxy (gzip, Security-Header) — Backend-Port **nicht** auf dem Host veröffentlicht
 - `make bootstrap` als Ein-Befehl-Workflow + **Smoke-Test** (`scripts/smoke.sh`)
@@ -129,11 +133,107 @@ der Katalog und die Spiele erfordern einen angemeldeten Spieler.
   auf die neue Version — entdeckt, als nach einem Deploy ein veraltetes
   `script.js` im Browser lief
 
+### ✅ Abgeschlossen (Phase 5 — Observability)
+
+- **Strukturierte Request-Logs**: nginx schreibt JSON-Access-Logs (`status`,
+  `uri`, `request_time`, `upstream_time`) — CloudWatch parst sie ohne Regex-Raten
+- **CloudWatch-Agent auf dem Host**: liefert diese Logs plus Container-stdout an
+  `/gamehub/prod/nginx-access` und `/gamehub/prod/app` (7-Tage-Aufbewahrung, vom
+  Template gesetzt) sowie Host-Metriken für `mem`/`disk`/`swap` in den
+  `CWAgent`-Namespace — per user-data installiert, keine manuelle Einrichtung
+- **Aus Logs abgeleitete Metriken** (`AWS::Logs::MetricFilter`): Request-Anzahl,
+  5xx-Anzahl und API-Latenz als *numerische* Extraktion (`$.request_time`) für
+  p50/p99 — nginx kannte die Zahlen schon, daher wird die App nicht mit einer
+  zusätzlichen Bibliothek instrumentiert, um sie zu wiederholen
+- **Externe Verfügbarkeitsprüfung**: EventBridge führt alle 5 Minuten ein kleines
+  Lambda gegen die öffentliche CloudFront-URL und `/api/health` aus; seine Logzeile
+  wird zur Metrik `SyntheticSuccess` — ein synthetischer Check ohne das Preisschild
+  von CloudWatch Synthetics
+- **Acht Alarme** in einem SNS-Topic: synthetische Verfügbarkeit (`TreatMissingData:
+  breaching` — Stille ist ein Ausfall), 5xx-Anzahl, API-p99-Latenz, Instanzstatus,
+  CPU, CPU-Credits, Memory und Disk. Host-Metrik-Alarme behandeln fehlende Daten als
+  `notBreaching`, denn ein gestoppter Agent ist kein Ausfall
+- **Ein Dashboard** (`gamehub-prod`): Verfügbarkeit, Requests vs. Fehler,
+  Latenz-Perzentile, Host-Auslastung und zwei Live-Log-Tabellen (letzte 5xx,
+  Backend-Tail)
+- **SLOs mit Error Budgets** ([`docs/slo.md`](docs/slo.md)): 99,5 % Verfügbarkeit
+  und p99 ≤ 1,5 s über rollende 30 Tage, mit der Messmethode für jeden —
+  und einer expliziten Liste dessen, was **nicht** zugesagt wird, weil eine
+  Single-AZ-t3.micro das ehrlich nicht versprechen kann
+- **Runbook** ([`docs/runbook.md`](docs/runbook.md)): ein Abschnitt pro Alarm mit
+  den exakten SSM/Logs-Insights-Befehlen, um die Ursache zu bestätigen, plus dem
+  Pfad für Revert/Rollback
+- **Live verifiziert, nicht angenommen**: die Metrik-Dimensionen des Agenten wurden
+  per `list-metrics` zurückgelesen und dann ins Template geschrieben — ein Alarm
+  mit falschem Dimensionssatz verharrt für immer in `INSUFFICIENT_DATA`
+
+### ✅ Abgeschlossen (Phase 6 — lokales Kubernetes + Argo CD GitOps)
+
+- **Echter Cluster, keine Rechnung**: ein Single-Node-[kind](https://kind.sigs.k8s.io/)-
+  Cluster (`k8s/kind-config.yaml`) mit denselben Images, die der Compose-Stack baut,
+  side-geladen in den Node (`make kind-up`)
+- **Deployments und ein StatefulSet**: Frontend und Backend laufen mit je 2 Replicas
+  und `maxUnavailable: 0`-Rollouts; MySQL ist ein StatefulSet mit
+  Volume-Claim-Template — ein Deployment würde der Datenbank einen zufälligen Namen
+  geben und zwei Pods um ein Datenverzeichnis kämpfen lassen
+- **Probes mit Konsequenzen**: Liveness auf `/api/health` (ohne Datenbank),
+  Readiness auf `/api/ready` (Datenbank) — ein DB-Ausfall stoppt neuen Verkehr,
+  statt jeden Pod neu zu starten
+- **Eine einzige Quelle der Wahrheit für den Seed**: `db/init.sql` wird von
+  `scripts/build-k8s-dbinit.sh` in eine ConfigMap gerendert, und CI schlägt fehl,
+  wenn die Kopie von der Quelle abweicht
+- **Least Privilege, gemessen statt angenommen**: Das Backend läuft als
+  unprivilegierter `node`-Benutzer mit `drop: ALL`; nginx behält genau die fünf
+  Capabilities, die sein Root-Masterprozess braucht — der erste Versuch mit
+  `drop: ALL` erzeugte `CrashLoopBackOff` mit `chown(...) failed (1: Operation not
+  permitted)`, weshalb die Liste jetzt mit Begründung niedergeschrieben ist
+- **GitOps mit Argo CD** (`k8s/argocd/application.yaml`): `automated`-Sync mit
+  `prune` und `selfHeal`, sodass der Merge nach `main` *das* Deployment ist und
+  eine manuelle `kubectl`-Änderung vom Controller zurückgesetzt wird
+- **Verifiziert wie der Rest des Projekts**: Dasselbe `scripts/smoke.sh` läuft
+  gegen den NodePort des Clusters (8081, damit Compose auf 8080 weiterläuft) und
+  besteht — 12 Spiele, ausgeliefert aus dem StatefulSet über den nginx-Proxy
+- **CI deckt es ab**: ein `manifests`-Job validiert jedes Manifest gegen das
+  Kubernetes-Schema (kubeconform) und prüft die generierte ConfigMap auf Drift
+
+### ✅ Abgeschlossen (Phase 7 — Security-Härtung & DSGVO)
+
+- **Löschung, die umgesetzt ist und nicht nur versprochen wird**: `DELETE /api/me`
+  löscht die Zeilen des Spielers **und** seine Cognito-Identität in einer Aktion
+  von der [Kontoseite](frontend/profile.html) aus. Ein Teilergebnis wird als
+  Teilergebnis gemeldet (`502`), niemals als Erfolg
+- **Die Kontoseite ist die DSGVO-Oberfläche**: Sie *ist* die Antwort auf Auskunft/
+  Portabilität (Identität + jede gespeicherte Zeile, als JSON kopierbar) und trägt
+  die Löschkontrolle — eine Seite, drei der vier Rechte, keine Support-E-Mail
+- **Ein zweisprachiger Datenschutzhinweis** ([`frontend/privacy.html`](frontend/privacy.html)):
+  ein Dateninventar mit Zweck, Rechtsgrundlage und Aufbewahrung pro Eintrag —
+  einschließlich der 7-Tage-Zugriffslogs, die ebenfalls personenbezogene Daten sind
+- **Ein AWS-Aufruf, von Hand signiert**: Die Kontolöschung benötigt
+  `cognito-idp:AdminDeleteUser`, also holt das Backend IMDSv2-Zugangsdaten und
+  signiert die Anfrage selbst (SigV4, `node:crypto`) — kein AWS SDK, keine
+  langlebigen Schlüssel, und die Signatur wird in der Testsuite Feld für Feld
+  geprüft
+- **Least Privilege auf der Identität**: Die Inline-Policy der Instanzrolle erlaubt
+  diese *eine* Aktion auf *einem* User-Pool-ARN, nicht `CognitoPowerUser` auf `*`
+- **Datenminimierung im Schema**: eine `personal_bests`-Zeile pro `(Spieler, Spiel)`
+  mit `GREATEST()` bei Konflikt — der beste Punktestand, keine Spielhistorie —
+  mit dem Cognito-`sub` als Schlüssel, sodass die Datenbank keine E-Mail-Adresse
+  enthält
+- **Migrationen mit einem Ledger** (`scripts/migrate.sh`, `db/migrations/`):
+  `db/init.sql` läuft nur auf einem leeren Volume, daher werden Schemaänderungen
+  als mit Prüfsumme versehene, idempotente Migrationen ausgeliefert; eine
+  umgeschriebene Migration wird abgelehnt
+- **Supply Chain in CI**: SPDX-SBOM (syft) als Artefakt aufbewahrt, Trivy gegen
+  das **gebaute Image** ebenso wie gegen das Dateisystem, `npm audit`, gitleaks
+  über die vollständige Historie und Dependabot für npm, Actions und Basis-Images
+- **Deploys sind CI-gated**: Der Deploy-Workflow läuft bei einem *erfolgreichen
+  CI-Lauf für genau diesen Commit* (nie auf einer späteren, ungetesteten Spitze
+  von `main`) und endet mit einem Post-Deploy-Smoke-Test gegen die öffentliche
+  URL — Homepage-Markup, alle 12 Katalogeinträge, Spieldetails und ein `401` von
+  einem nicht authentifizierten `/api/me`
+
 ### 🚧 Geplant
 
-- **Phase 5 — Observability**: Metriken, Dashboards, Alarme, Runbooks, SLOs
-- **Phase 6 — lokales Kubernetes (kind) + Argo CD GitOps**
-- **Phase 7 — Security- & DSGVO-Härtung** (Löschvorgang für Daten, SBOM)
 - **Phase 8 — /learn-Dokumentationsseite, PDF-Export, Lasttest-Bericht**
 
 ---
@@ -242,10 +342,13 @@ GameHub/
 │   ├── play.html           ← game runner host (READY → PLAYING → GAME OVER)
 │   ├── signin.html         ← Cognito sign-in
 │   ├── signup.html         ← Cognito sign-up + email confirmation step
+│   ├── profile.html        ← account page: stored data, JSON export, deletion
+│   ├── privacy.html        ← bilingual (EN/DE) privacy notice
 │   ├── script.js           ← homepage + catalogue logic
 │   ├── play.js             ← runner: ENGINE_MAP, HUD, high scores
 │   ├── engines.js          ← 6 dependency-free canvas game engines
 │   ├── auth.js             ← Cognito REST client, session, page guard
+│   ├── account.js          ← account page: fetch scores, export, delete
 │   ├── config.js           ← runtime config (local dev: auth off)
 │   ├── bg.js               ← animated arcade background
 │   ├── style.css
@@ -258,26 +361,48 @@ GameHub/
 │   ├── .env.example        ← copy to .env only for non-Docker runs
 │   ├── db.js               ← connection pool
 │   ├── auth.js             ← Cognito JWKS verification (no SDK)
+│   ├── cognito.js          ← IMDSv2 credentials + SigV4 AdminDeleteUser
 │   ├── app.js              ← Express app (exported for tests)
 │   ├── server.js           ← HTTP entrypoint
-│   ├── test/               ← unit, integration and auth suites
+│   ├── test/               ← unit, integration, auth, GDPR and signer suites
 │   ├── package.json
 │   └── package-lock.json
 ├── db/
-│   └── init.sql            ← schema + seed (runs on first boot)
+│   ├── init.sql            ← schema + seed (runs on first boot)
+│   └── migrations/         ← checksummed migrations applied to live schemas
 ├── infra/
 │   ├── cognito.yaml        ← user pool + app client
 │   ├── site.yaml           ← S3 + CloudFront (+ /api/* origin)
 │   ├── backend.yaml        ← EC2 host, security group, IAM, elastic IP
+│   ├── observability.yaml  ← log groups, metric filters, canary, alarms
 │   └── github-oidc.yaml    ← OIDC provider + scoped deploy role
+├── k8s/
+│   ├── kind-config.yaml     ← single-node kind cluster (node port → host 8081)
+│   ├── namespace.yaml
+│   ├── config.yaml          ← ConfigMap (app config) + local-only Secret
+│   ├── db.yaml              ← MySQL StatefulSet + headless Service + PVC
+│   ├── db-init-configmap.yaml ← GENERATED from db/init.sql (CI checks drift)
+│   ├── backend.yaml         ← Express Deployment + `backend` Service
+│   ├── frontend.yaml        ← nginx Deployment + NodePort Service
+│   └── argocd/
+│       └── application.yaml ← Argo CD Application (prune + selfHeal)
 ├── scripts/
 │   ├── smoke.sh            ← end-to-end checks
 │   ├── build-frontend.sh   ← builds the deployable static artifact
-│   └── deploy-frontend.sh  ← S3 sync + CloudFront invalidation
-├── .github/workflows/
-│   ├── ci.yml              ← lint, tests, coverage, compose smoke, scans
-│   └── deploy.yml          ← OIDC deploy (site + API host)
-├── docs/                   ← step-by-step learning notes
+│   ├── deploy-frontend.sh  ← S3 sync + CloudFront invalidation
+│   ├── kind-up.sh          ← cluster + images + manifests + smoke test
+│   ├── argocd-up.sh        ← install Argo CD, sync the app, wait for Healthy
+│   ├── build-k8s-dbinit.sh ← renders the DB seed ConfigMap (--check in CI)
+│   ├── migrate.sh          ← applies db/migrations (ledger + checksums)
+│   ├── build-learn.js      ← builds the /learn site from docs/
+│   └── build-pdf.sh        ← renders the guide to PDF
+├── learn/                  ← generated documentation site + PDF
+├── .github/
+│   ├── dependabot.yml      ← weekly npm / Actions / base-image updates
+│   └── workflows/
+│       ├── ci.yml          ← lint, tests, coverage, compose smoke, manifests, scans
+│       └── deploy.yml      ← CI-gated OIDC deploy + post-deploy verification
+├── docs/                   ← learning notes, SLOs, runbook, ADRs
 ├── Dockerfile              ← frontend image (nginx)
 ├── docker-compose.yml      ← frontend + backend + db
 ├── Makefile                ← make bootstrap / up / smoke / test / db-reset
@@ -326,16 +451,33 @@ make test-frontend    # game-engine, mapping-contract and auth tests (Node only)
 make down             # stop, keep database data
 make db-reset         # wipe + re-seed the database
 make clean            # full teardown incl. images and DB volume
+make kind-up          # same app on a local Kubernetes cluster (kind) → :8081
+make argocd-up        # install Argo CD and sync the manifests from Git
+make k8s-dbinit       # re-render the Kubernetes DB seed ConfigMap
+make learn            # rebuild the /learn docs site and the PDF
 make help             # list all targets
 ```
 
 Lieber reines Compose? `docker-compose up -d --build` und dann `./scripts/smoke.sh` bewirkt dasselbe.
 
+### 3. Oder auf Kubernetes ausführen
+
+```bash
+make kind-up     # kind cluster + images + manifests + the same smoke test
+make argocd-up   # Argo CD takes over from Git: Synced + Healthy
+```
+
+Der Cluster veröffentlicht die App auf **http://localhost:8081**, sodass er neben
+dem Compose-Stack auf 8080 laufen kann. `make kind-down` löscht den Cluster; die
+Docker-Images bleiben. Alles darüber — einschließlich dessen, was er *nicht*
+verspricht — steht in
+[`docs/step-6-kubernetes-gitops.md`](docs/step-6-kubernetes-gitops.md).
+
 ---
 
 ## ☁️ Auf AWS deployen
 
-Alles ist CloudFormation in [`infra/`](infra/) — vier kleine Stacks, jeder mit
+Alles ist CloudFormation in [`infra/`](infra/) — fünf kleine Stacks, jeder mit
 einem einzigen Befehl. Stack-Outputs speisen den nächsten Stack, sodass es keine
 Tabelle mit IDs gibt, die man von Hand kopieren muss.
 
@@ -368,7 +510,25 @@ aws cloudformation deploy --region "$AWS_REGION" \
   --parameter-overrides Stage=prod BackendOriginDomain=<ec2 public dns>
 
 AWS_REGION=$AWS_REGION ./scripts/deploy-frontend.sh
+
+# 5. Observability: log groups + retention, metrics from logs, the synthetic
+#    check, eight alarms and the dashboard. AlarmEmail is optional — without it
+#    the SNS topic is still created and can be subscribed later (see the
+#    TopicArn output), it just has no subscriber yet.
+aws cloudformation deploy --region "$AWS_REGION" \
+  --stack-name gamehub-observability --template-file infra/observability.yaml \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides \
+    Stage=prod \
+    InstanceId=<ec2 instance id> \
+    SiteUrl=<https://cloudfront domain> \
+    AlarmEmail=<you@example.com>
 ```
+
+Deploye den Observability-Stack **bevor** der CloudWatch-Agent des Hosts seine
+erste Logzeile schreibt: Das Template besitzt die Log-Gruppen, damit deren
+Aufbewahrung gesetzt ist, und eine vom Agenten erstellte Gruppe würde diese
+Ressource mit `AlreadyExists` fehlschlagen lassen.
 
 Für Continuous Deployment deploye den vierten Stack
 (`infra/github-oidc.yaml`) einmal und setze dann diese GitHub-Repository-Variablen
@@ -377,6 +537,15 @@ erledigt den Rest über OIDC, ohne dass irgendwo AWS-Schlüssel gespeichert sind
 
 `AWS_REGION`, `AWS_DEPLOY_ROLE_ARN`, `SITE_BUCKET`, `DISTRIBUTION_ID`,
 `INSTANCE_ID`, `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID`.
+
+Der Workflow läuft nicht beim Push selbst. Er läuft, wenn [CI](.github/workflows/ci.yml)
+**auf `main` erfolgreich ist** (`workflow_run` + `conclusion == 'success'`) und
+checkt den von CI getesteten Commit aus, sodass die Produktion niemals einen
+Commit erhält, der nicht beurteilt wurde. Der Rollout zieht dann die Revision auf
+dem Host, baut die Container neu, wartet auf MySQL und wendet ausstehende
+Migrationen an (`./scripts/migrate.sh`), bevor ein abschließender Job die
+öffentliche CloudFront-URL smoke-testet — Homepage, alle 12 Katalogeinträge,
+Spieldetails und ein `401` von einem nicht authentifizierten `/api/me`.
 
 **Kostenhinweis (ehrlich):** die Website (S3 + CloudFront), Cognito und die vier
 CloudFormation-Stacks liegen bei diesem Verkehrsaufkommen im Free Tier. Die
@@ -400,6 +569,9 @@ Die folgenden Endpunkte sind in der aktuellen Anwendung implementiert.
 | GET | `/api/games` | Spiele aus der Datenbank abrufen |
 | GET | `/api/games/:id` | Einzelnes Spiel (treibt den Runner an); 404 für unbekannte *und* nicht numerische IDs |
 | GET | `/api/me` | Gibt die verifizierte Cognito-Identität zurück — Beweis, dass das Token geprüft wurde |
+| POST | `/api/scores` | Speichert den besten Punktestand des Spielers für ein Spiel (Upsert, `GREATEST`) — `201` mit dem gespeicherten Bestwert |
+| GET | `/api/scores/me` | Jede gespeicherte Zeile des Aufrufers: die Antwort auf Auskunft/Portabilität |
+| DELETE | `/api/me` | **Löschung** — löscht die Punktestände des Aufrufers *und* seine Cognito-Identität; `204`, oder `502`, wenn nur die Hälfte funktioniert hat |
 
 Die API ist **nur über den nginx-Proxy auf `:8080`** erreichbar — Port `3000`
 ist bewusst nicht auf dem Host veröffentlicht (nutze `docker-compose exec backend …`,
@@ -408,8 +580,10 @@ wenn du direkten Zugriff aus dem Netzwerk heraus brauchst).
 **Auth-Verhalten:** Middleware auf jeder `/api/*`-Route außer den beiden Probes.
 Ist der Cognito-Pool konfiguriert (das heißt: im Deployment), erhalten Anfragen
 ohne gültiges ID-Token `401 {"error":"Unauthorized"}`. Ist er nicht konfiguriert
-(lokale Entwicklung), laufen die Anfragen durch und das Backend protokolliert beim
-Start `auth_disabled` — die App ist also nie kaputt, aber die Umgehung ist auch nie still.
+(lokale Entwicklung), funktionieren die schreibgeschützten Routen weiter, die
+Identitätsausgabe antwortet mit `401`, und die angemeldeten Funktionen antworten
+mit **`501`**, statt es vorzutäuschen — das Backend protokolliert beim Start
+zudem `auth_disabled`, sodass die Umgehung nie still ist.
 
 ```bash
 curl http://localhost:8080/api/health
@@ -419,6 +593,14 @@ curl http://localhost:8080/api/games/4
 
 # with the pool configured, protected routes need the ID token:
 curl -H "Authorization: Bearer $ID_TOKEN" http://localhost:8080/api/me
+curl -H "Authorization: Bearer $ID_TOKEN" http://localhost:8080/api/scores/me
+curl -H "Authorization: Bearer $ID_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"game":"Cyber Strike","score":42}' \
+     http://localhost:8080/api/scores
+
+# erasure (irreversible — it deletes the Cognito user as well):
+curl -X DELETE -H "Authorization: Bearer $ID_TOKEN" http://localhost:8080/api/me
 ```
 
 Oder führe die vollständige Prüfsuite aus: `make smoke`.
@@ -437,7 +619,7 @@ Trade-off für eine spätere Phase und keine hier erhobene Behauptung.
 
 Setze dich jederzeit mit `make db-reset` auf einen sauberen vorbefüllten Zustand zurück.
 
-Die aktuelle Spieltabelle enthält diese Felder:
+Die Tabelle `games` enthält diese Felder:
 
 | Spalte | Zweck |
 |---|---|
@@ -447,6 +629,40 @@ Die aktuelle Spieltabelle enthält diese Felder:
 | `description` | Kurze Spielbeschreibung |
 
 Beispielkategorien sind Action, Racing und Strategy.
+
+### Spielerdaten (`personal_bests`)
+
+| Spalte | Zweck |
+|---|---|
+| `user_sub` | Der Cognito-`sub` — **niemals** die E-Mail-Adresse |
+| `game` | Spielname (gegen `games.name` validiert, also keine Freitextzeilen) |
+| `score` | Nur der beste Punktestand (`GREATEST()` bei Konflikt) |
+| `updated_at` | Wann dieser Bestwert zuletzt verbessert wurde |
+
+Der Primärschlüssel ist `(user_sub, game)`: eine Zeile pro Spieler und Spiel, was
+das gesamte Datenminimierungs-Argument ist. Spieler werden gegenüber der Datenbank
+durch einen pseudonymen Cognito-`sub` identifiziert; keine E-Mail, kein Name, keine
+IP wird neben einem Punktestand gespeichert.
+
+### Migrationen
+
+`db/init.sql` läuft **einmal**, auf einem leeren Daten-Volume — was für einen
+frischen Clone korrekt und für eine Live-Datenbank falsch ist. Schemaänderungen
+werden daher als Migrationen ausgeliefert:
+
+```bash
+./scripts/migrate.sh            # apply everything pending
+./scripts/migrate.sh --status   # what is applied, what is pending
+```
+
+Jede Datei in [`db/migrations/`](db/migrations/) wird in einem
+`schema_migrations`-Ledger mit einer **Prüfsumme** festgehalten. Eine Migration,
+die angewendet und danach bearbeitet wurde, wird abgelehnt, weil die Datenbank, die
+sie ausgeführt hat, nicht mehr durch die Datei beschrieben wird. Der Runner
+erreicht MySQL auf einem Host über `docker compose exec` und in CI über den
+`mysql`-Client (`MIGRATE_VIA`), sodass dasselbe Skript an beiden Orten läuft. Es ist
+außerdem Teil des Deployments: Der Rollout bringt das Schema nach dem Start der
+Container auf den aktuellen Stand.
 
 Das Frontend ruft Spieldatensätze dynamisch über die Express-API ab, statt sich vollständig auf fest codierte Spielkarten zu verlassen.
 
@@ -527,6 +743,55 @@ Härtung des Live-Deployments:
   und die Passwörter sind `NoEcho`-Parameter im Stack
 - **CloudFront erzwingt HTTPS** für Betrachter, und der S3-Bucket ist privat mit
   einer Bucket-Policy, die nur diese Distribution zulässt (OAC)
+- **Eine AWS-Berechtigung, ein ARN**: Die Inline-Policy der Instanzrolle erlaubt
+  `cognito-idp:AdminDeleteUser` auf dem GameHub-User-Pool und nichts sonst — kein
+  `CognitoPowerUser`, keine `*`-Ressource
+- **Keine Drittanbieter-Requests aus dem Browser**: Die Fonts sind selbst gehostet
+  (OFL), sodass das Laden einer Seite keine Besucher-IP an Google oder an einen
+  Analytics-/CDN-Anbieter preisgibt. Das ist in der Praxis eine deutsche
+  Datenschutzanforderung, keine Performance-Vorliebe
+
+### Datenschutz (DSGVO)
+
+- **Datenminimierung durch das Schema**: eine `(user_sub, game)`-Zeile pro Spieler
+  mit dem besten Punktestand — keine Spielhistorie, keine E-Mail in der
+  Punkte-Tabelle, keine IP neben einem Punktestand
+- **Speicherbegrenzung**: Zugriffslogs werden 7 Tage aufbewahrt und dann
+  automatisch gelöscht; die Aufbewahrung wird auf den Log-Gruppen in
+  `infra/observability.yaml` gesetzt und der Grund im Hinweis niedergeschrieben
+- **Löschung (Art. 17)**: `DELETE /api/me` entfernt die Datenbankzeilen und die
+  Cognito-Identität. Die Reihenfolge ist wichtig — zuerst die Zeilen —, denn würde
+  die Identität zuerst gelöscht, hinterließe ein Fehler Daten, die niemand
+  (auch nicht der Nutzer) je löschen könnte. Ein Cognito-Fehler liefert `502` mit
+  einer wahrheitsgemäßen Meldung
+- **Auskunft & Portabilität (Art. 15, 20)**: Die Kontoseite listet die Identität
+  und jede gespeicherte Zeile, mit Ein-Klick-JSON-Export
+- **Transparenz (Art. 13)**: [`frontend/privacy.html`](frontend/privacy.html)
+  ist ein zweisprachiges Inventar — Eintrag, Zweck, Rechtsgrundlage, Aufbewahrung,
+  Auftragsverarbeiter (AWS, `eu-central-1`) und Rechte
+- **Bewusst nicht gespeichert**: Passwörter (Cognito hält einen gesalzenen Hash,
+  den wir nie sehen), Werbe-Identifikatoren, Verhaltensprofile, Drittanbieter-Analytics
+
+### Supply Chain & Pipeline
+
+- **SBOM pro Build**: ein SPDX-JSON-Inventar (syft) wird in CI erzeugt und als
+  Build-Artefakt aufbewahrt
+- **Zwei Schwachstellen-Scans, zwei Fragen**: Trivy über das Dateisystem (Quellcode
+  und Abhängigkeiten) *und* über das **gebaute Image** (was das Basis-Image
+  hinzufügt), plus `npm audit` — alle lassen den Job bei `CRITICAL`/`HIGH` fehlschlagen
+- **Secret-Scanning über die Historie**, nicht nur über den Diff: gitleaks läuft
+  gegen die vollständige Git-Historie, weil ein Secret, das committet und wieder
+  entfernt wurde, trotzdem geleakt ist
+- **Dependabot** für npm, GitHub Actions und Basis-Images: Aktualisierungen kommen
+  als überprüfbare Pull Requests, die dasselbe CI bestehen müssen, ohne Auto-Merge
+- **Das Deployment ist an CI gekoppelt, nicht an den Push**: `.github/workflows/deploy.yml`
+  wird durch einen *erfolgreichen CI-Lauf* für einen bestimmten Commit ausgelöst und
+  checkt **diesen** Commit aus, sodass ein Merge die Produktion nicht erreichen kann,
+  bevor die Tests ihn beurteilt haben
+- **Post-Deploy-Verifikation gegen die öffentliche URL**: Die Pipeline endet mit der
+  Prüfung der Homepage, aller 12 Katalogeinträge über die API, der Spieldetails per
+  ID und dass ein nicht authentifiziertes `/api/me` `401` liefert — das Edge, nicht
+  nur der Host
 
 ---
 
@@ -552,6 +817,25 @@ Härtung des Live-Deployments:
 - [x] Anmelde-Gate bleibt offen (mit lauter Startwarnung), wenn kein Pool konfiguriert ist. *(Auth-Test)*
 - [x] Live-Website auf S3 + CloudFront deployt, API über CloudFront `/api/*` erreichbar. *(live verifiziert)*
 - [x] Deployment ist schlüssellos: GitHub Actions übernimmt eine Rolle via OIDC. *(Deploy-Workflow)*
+- [x] Strukturierte JSON-Access-Logs erreichen CloudWatch Logs. *(mit Logs Insights verifiziert)*
+- [x] Aus Logs abgeleitete Metriken erzeugen Datenpunkte. *(mit `get-metric-statistics` verifiziert)*
+- [x] Der synthetische Check läuft planmäßig und sein Ergebnis ist eine Metrik, nicht nur eine Logzeile. *(live verifiziert)*
+- [x] Jeder Alarm hat einen echten Zustand und ein Benachrichtigungsziel. *(mit `describe-alarms` verifiziert)*
+- [x] Die App läuft auf Kubernetes aus denselben Images. *(auf kind verifiziert; Smoke-Test auf :8081 bestanden)*
+- [x] Manifeste sind gültig und der generierte DB-Seed stimmt mit `db/init.sql` überein. *(kubeconform + Drift-Check in CI)*
+- [x] Argo CD meldet die Application als `Synced`/`Healthy` und setzt manuellen Drift zurück. *(auf kind verifiziert)*
+- [x] Rolling Updates fallen nie unter die deklarierte Replica-Zahl. *(`maxUnavailable: 0`)*
+- [x] Die Punktestände eines Spielers werden serverseitig gespeichert, eine Zeile pro Spiel, nur der Bestwert. *(DSGVO-Test: Upsert-Semantik)*
+- [x] Ein Spieler kann jede über ihn gespeicherte Zeile abrufen. *(DSGVO-Test: `/api/scores/me`)*
+- [x] Die Abfrage eines Spielers liefert die Zeilen keines anderen. *(DSGVO-Test: Zeilen-Isolation)*
+- [x] Die Kontolöschung entfernt die DB-Zeilen **und** die Cognito-Identität. *(DSGVO-Test: SigV4 `AdminDeleteUser` geprüft)*
+- [x] Ein Cognito-Fehler löscht die Daten dennoch und meldet ein Teilergebnis (`502`). *(DSGVO-Test)*
+- [x] Die Identität kann nicht durch eine Anfrage gelöscht werden, bei der kein Pool konfiguriert ist. *(Open-Mode-Test: `501`)*
+- [x] Signaturen sind echt: Sitzungstokens sind signiert, und ein geänderter Body ändert die Signatur. *(10 Signer-Tests)*
+- [x] Migrationen werden einmal angewendet, sind idempotent und werden abgelehnt, wenn sie umgeschrieben werden. *(CI führt den Runner zweimal aus)*
+- [x] Das gebaute Image wird gescannt, nicht nur der Quellbaum. *(Trivy-Image-Scan in CI)*
+- [x] Ein Abhängigkeitsinventar (SBOM) wird bei jedem Build erzeugt. *(syft, SPDX-JSON-Artefakt)*
+- [x] Die Produktion erhält nur einen Commit, den CI bestanden hat, und das Deployment wird am Edge smoke-getestet. *(Deploy-Workflow `workflow_run` + `verify`)*
 
 ---
 
@@ -569,7 +853,7 @@ Härtung des Live-Deployments:
 - Healthcheck-gesteuerter Container-Start (geordnetes Warten auf Abhängigkeiten)
 - Design von Liveness- vs. Readiness-Probes
 - Connection Pooling
-- Non-Root-Container-Images, gepinnte Basis-Images, auditierte Lockfiles
+- Non-Root-Container-Images **ohne Paketmanager in der Laufzeit**, Basis-Images auf dem Stable-Kanal mit Security-Patches zur Build-Zeit, auditierte Lockfiles
 - Ein-Befehl-Bootstrap + Smoke-Testing
 - Automatisiertes Testen (Unit + Integration) mit Coverage-Gates
 - CI/CD-Pipelines (GitHub Actions): Lint → Test → Build → Security-Scan
@@ -580,9 +864,25 @@ Härtung des Live-Deployments:
 - Canvas-basierte UI-Animation mit Unterstützung für Barrierefreiheit (Reduced Motion)
 - Identität und Zugriff: Cognito-User-Pools, ID-Tokens, JWKS-basierte JWT-Verifikation
 - Schlüssellose CI/CD: GitHub-Actions-OIDC-Föderation und Deploy-Rollen nach dem Least-Privilege-Prinzip
-- Infrastruktur als Code: vier CloudFormation-Stacks mit Cross-Stack-Outputs
+- Infrastruktur als Code: fünf CloudFormation-Stacks mit Cross-Stack-Outputs
 - Statisches Hosting und CDN-Design: privates S3 + CloudFront OAC, aufgeteiltes Cache-Verhalten
+- Observability: strukturierte JSON-Logs, aus Logs abgeleitete Metriken, Metric Math auf einem Dashboard
+- Synthetisches (Black-Box-)Verfügbarkeits-Monitoring mit Alarm-Semantik, die Stille als Ausfall behandelt
+- Alarm-Design: 8 umsetzbare Alarme, SNS-Benachrichtigungspfad, pro Signal gewähltes `TreatMissingData`
+- SLOs und Error Budgets, vor dem Vorfall geschrieben, mit einem Runbook pro Alarm
+- Kubernetes: Deployments vs. StatefulSets, benannte Ports, Probes, Resource Requests/Limits
+- Container Security Context: aus Evidenz gewählte Capability-Drop-Listen, seccomp, Non-Root
+- GitOps mit Argo CD: automatischer Sync, Prune, selfHeal, Drift als zurückzusetzender Bug
+- Lokales Cluster-Engineering: kind, side-geladene Images, NodePort-Mapping, PVC-Scope
 - Host-Härtung: SSM-only-Administration, IMDSv2, auf Prefix-Listen beschränkter Ingress
+- Datenschutz als Code: DSGVO Art. 15/17/20 als Endpunkte umgesetzt, nicht als Richtlinientext
+- Löschung über zwei Systeme mit definiertem Fehlermodus (Teillöschung als Teil gemeldet)
+- AWS-Request-Signierung von Hand (SigV4) und Instanzmetadaten-Zugangsdaten (IMDSv2), kein SDK
+- IAM Least Privilege: eine Aktion, auf ein Ressourcen-ARN beschränkt
+- Datenminimierung im Schema-Design (eine Zeile pro Spieler und Spiel, pseudonymer Schlüssel)
+- Datenbankmigrationen mit Prüfsummen-Ledger; Idempotenz in CI verifiziert
+- Supply Chain: SBOM-Erzeugung, Schwachstellen-Scanning auf Image-Ebene, Dependabot, Secret-Scanning über die Historie
+- CI-gated Deployment: Die Produktion erhält nur den Commit, den CI bestanden hat, danach ein Post-Deploy-Smoke-Test am Edge
 - Git- und GitHub-Workflows
 - Fehlerbehebung in Anwendungen
 
@@ -597,9 +897,9 @@ Härtung des Live-Deployments:
 | **2** | Spielerische UI: live-animierter Hintergrund, selbst gehostete Game-Fonts, Arcade-Styling | ✅ 2026-10-18 |
 | **3** | Echte spielbare Spiele — jeder Katalogeintrag öffnet ein Spiel | ✅ 2026-10-19 |
 | **4** | Auth & Live: Cognito (Anmelde-Gate), S3 + CloudFront, EC2-Backend, CloudFormation + OIDC-CD | ✅ 2026-10-19 |
-| **5** | Observability: Metriken, Dashboards, Alarme, Runbooks, SLOs | ⏭️ als Nächstes |
-| **6** | Lokales Kubernetes (kind) + Argo CD GitOps | Geplant |
-| **7** | Security- & DSGVO-Härtung (Löschvorgang, SBOM) | Geplant |
+| **5** | Observability: strukturierte Logs, Metriken aus Logs, synthetischer Check, 8 Alarme, Dashboard, SLOs, Runbook | ✅ 2026-10-19 |
+| **6** | Lokales Kubernetes (kind) + Argo CD GitOps | ✅ 2026-10-19 |
+| **7** | Security- & DSGVO-Härtung: Kontolöschung (Art. 17) über DB + Cognito, SigV4 ohne SDK, Migrationen mit Prüfsummen-Ledger, SBOM + Image-Scanning, CI-gated Deploys | ✅ 2026-10-19 |
 | **8** | /learn-Dokumentationsseite + PDF-Export + Lasttest-Bericht | Geplant |
 
 ---
