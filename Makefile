@@ -7,7 +7,7 @@
 
 COMPOSE := $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
 
-.PHONY: bootstrap up down restart logs ps smoke test lint coverage db-reset clean help
+.PHONY: bootstrap up down restart logs ps smoke test test-frontend lint coverage db-reset clean help
 
 bootstrap: up smoke ## Clone → run: build, start, wait for health, verify endpoints
 	@echo "✔ GameHub is up → http://localhost:8080"
@@ -32,6 +32,9 @@ smoke: ## Verify the running stack end-to-end (used by CI later)
 
 test: ## Backend tests: unit + integration (integration skips if DB is down)
 	cd backend && if [ ! -d node_modules ]; then npm ci; fi && npm test
+
+test-frontend: ## Frontend tests: game engines on a stubbed canvas + engine coverage
+	node --test "frontend/test/*.test.js"
 
 lint: ## Static analysis on the backend
 	cd backend && if [ ! -d node_modules ]; then npm ci; fi && npm run lint

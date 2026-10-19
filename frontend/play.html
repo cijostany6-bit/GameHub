@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>GameHub | Play</title>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <!-- Navigation -->
+  <header class="navbar">
+
+    <a href="index.html" class="logo">
+      GAME<span>HUB</span>
+    </a>
+
+    <nav class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="games.html" class="active">Games</a>
+      <a href="index.html#tournaments">Tournaments</a>
+      <a href="index.html#leaderboard">Leaderboard</a>
+    </nav>
+
+    <button class="nav-button">
+      Join Arena
+    </button>
+
+  </header>
+
+
+  <main class="play-main">
+
+    <!-- Error state: hidden unless the id is bad or the API says no -->
+    <section class="play-error" id="play-error" hidden>
+      <p class="eyebrow">SIGNAL LOST</p>
+      <h1>GAME UNAVAILABLE</h1>
+      <p id="error-text">This game does not exist (yet).</p>
+      <a class="primary-button" href="games.html">BACK TO GAMES</a>
+    </section>
+
+    <!-- Game header -->
+    <section class="play-header" id="play-header" hidden>
+
+      <a href="games.html" class="back-link" id="back-link">
+        &larr; ALL GAMES
+      </a>
+
+      <div class="play-heading">
+        <span class="cat-badge" id="cat-badge">ACTION</span>
+        <h1 id="game-title">…</h1>
+        <p class="play-description" id="game-description"></p>
+      </div>
+
+    </section>
+
+    <!-- Stage -->
+    <div class="play-stage" hidden>
+      <canvas id="game-canvas" width="640" height="480"></canvas>
+
+      <div class="stage-overlay" id="stage-overlay">
+        <p class="overlay-title" id="overlay-title">READY?</p>
+        <p class="overlay-sub" id="overlay-sub"></p>
+        <div class="overlay-actions">
+          <button class="primary-button" id="overlay-primary">
+            START GAME
+          </button>
+          <a class="secondary-button" id="overlay-back" href="games.html">
+            BACK TO GAMES
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- HUD -->
+    <div class="hud-bar" hidden>
+      <div class="hud-cell">
+        <span class="hud-label">SCORE</span>
+        <span class="hud-value" id="hud-score">0000</span>
+      </div>
+      <div class="hud-cell">
+        <span class="hud-label">BEST</span>
+        <span class="hud-value hud-best" id="hud-best">0000</span>
+      </div>
+      <div class="hud-cell hud-cell-wide">
+        <span class="hud-label">STATUS</span>
+        <span class="hud-value" id="hud-status">…</span>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <aside class="controls-panel" hidden>
+      <p class="controls-title">CONTROLS</p>
+      <p class="controls-hint" id="controls-hint"></p>
+      <p class="engine-credit" id="engine-name"></p>
+    </aside>
+
+  </main>
+
+  <script src="bg.js" defer></script>
+  <script src="engines.js"></script>
+  <script src="play.js"></script>
+</body>
+
+</html>

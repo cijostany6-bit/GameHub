@@ -106,6 +106,30 @@ app.get("/api/games", async (req, res) => {
     }
 });
 
+// Single game — powers play.html (the runner needs one title,
+// not the whole catalogue). Unknown or non-numeric ids: 404.
+app.get("/api/games/:id", async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            "SELECT id, name, category, description FROM games WHERE id = ?",
+            [req.params.id]
+        );
+        if (rows.length === 0) {
+            res.status(404).json({ error: "Game not found" });
+            return;
+        }
+        res.json(rows[0]);
+    } catch (error) {
+        console.error(JSON.stringify({
+            ts: new Date().toISOString(),
+            level: "error",
+            msg: "game_detail_query_failed",
+            error_code: error.code || "UNKNOWN"
+        }));
+        res.status(500).json({ error: "Failed to retrieve game" });
+    }
+});
+
 // ---------------------------------------------------------
 // 404 + central error handler — internals never leak.
 // ---------------------------------------------------------
@@ -117,6 +141,10 @@ app.use((req, res) => {
 app.use((error, req, res, next) => {
     if (error.type === "entity.parse.failed") {
         res.status(400).json({ error: "Invalid JSON body" });
+        return;
+    }
+    if (error.type === "entity.too.large") {
+        res.status(413).json({ error: "Request body too large" });
         return;
     }
     next(error);

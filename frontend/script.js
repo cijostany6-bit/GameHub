@@ -365,10 +365,8 @@ function attachGameButtons() {
       const gameId =
         button.dataset.gameId;
 
-
-      alert(
-        `Game details for game ID ${gameId} will be available soon!`
-      );
+      window.location.href =
+        `play.html?id=${encodeURIComponent(gameId)}`;
 
     });
 

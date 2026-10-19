@@ -125,3 +125,38 @@ describe("GET /api/games", () => {
         assert.equal(names.length, new Set(names).size, "duplicate game names");
     });
 });
+
+describe("GET /api/games/:id", () => {
+    it("returns exactly one game with the list-compatible shape", async (t) => {
+        if (needsDb(t)) return;
+
+        const list = await (await fetch(`${base}/api/games`)).json();
+        const target = list[0];
+
+        const res = await fetch(`${base}/api/games/${target.id}`);
+        assert.equal(res.status, 200);
+
+        const game = await res.json();
+        assert.deepEqual(game, target, "detail must match the list row");
+    });
+
+    it("404s for an id that does not exist", async (t) => {
+        if (needsDb(t)) return;
+
+        const res = await fetch(`${base}/api/games/999999`);
+        assert.equal(res.status, 404);
+
+        const body = await res.json();
+        assert.deepEqual(body, { error: "Game not found" });
+    });
+
+    it("404s (does not crash) on a non-numeric id", async (t) => {
+        if (needsDb(t)) return;
+
+        const res = await fetch(`${base}/api/games/not-a-number`);
+        assert.equal(res.status, 404);
+
+        const body = await res.json();
+        assert.deepEqual(body, { error: "Game not found" });
+    });
+});

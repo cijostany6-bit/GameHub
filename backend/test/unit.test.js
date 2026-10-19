@@ -151,6 +151,13 @@ describe("error handling under database outage", () => {
                 !JSON.stringify(body).includes("connect"),
                 "driver details must never leak to clients"
             );
+
+            // The detail route fails the same way — generic body too.
+            const detail = await fetch(`${downBase}/api/games/1`);
+            assert.equal(detail.status, 500);
+            assert.deepEqual(await detail.json(), {
+                error: "Failed to retrieve game"
+            });
         } finally {
             downServer.closeAllConnections?.();
             downServer.close();
@@ -170,5 +177,31 @@ describe("request body validation", () => {
 
         const body = await res.json();
         assert.deepEqual(body, { error: "Invalid JSON body" });
+    });
+
+    it("rejects oversized bodies with 413", async () => {
+        const res = await fetch(`${base}/api/anything`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: `{"pad":"${"a".repeat(110 * 1024)}"}`
+        });
+        assert.equal(res.status, 413);
+
+        const body = await res.json();
+        assert.deepEqual(body, { error: "Request body too large" });
+    });
+
+    it("falls through to the central handler for other parse errors", async () => {
+        // Unsupported charset → body-parser entity.supportedcharset error,
+        // which neither client-error branch matches → central 500 handler.
+        const res = await fetch(`${base}/api/anything`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json; charset=utf-nope" },
+            body: "{}"
+        });
+        assert.equal(res.status, 500);
+
+        const body = await res.json();
+        assert.deepEqual(body, { error: "Internal server error" });
     });
 });
