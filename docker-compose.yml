@@ -19,6 +19,10 @@ services:
     image: gamehub-frontend:local
     ports:
       - "8080:80"
+    # Access logs are written to the host so the CloudWatch agent can
+    # ship them (metrics, alarms and log search in the deployed stack).
+    volumes:
+      - /var/log/gamehub/nginx:/var/log/nginx
     depends_on:
       backend:
         condition: service_healthy

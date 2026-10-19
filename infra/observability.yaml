@@ -1,0 +1,527 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  GameHub - observability: log groups with retention, metrics derived
+  from the nginx access log, a synthetic availability check, alarms and
+  one dashboard. Alarms notify SNS; subscribe an address with the
+  TopicArn output (or pass AlarmEmail and confirm the mail).
+
+Parameters:
+
+  Stage:
+    Type: String
+    Default: prod
+    AllowedPattern: "[a-z0-9-]+"
+    Description: Must match the Stage used by the backend and site stacks.
+
+  InstanceId:
+    Type: String
+    Description: From the backend stack output.
+
+  SiteUrl:
+    Type: String
+    Description: Public https URL the synthetic check calls (CloudFront).
+
+  AlarmEmail:
+    Type: String
+    Default: ""
+    Description: >
+      Optional. Address to subscribe to the alarm topic; AWS sends a
+      confirmation mail that must be accepted before alerts arrive.
+
+  LogRetentionDays:
+    Type: Number
+    Default: 7
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90]
+
+Conditions:
+  HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, ""]]
+
+Resources:
+
+  # ---------------------------------------------------------------
+  # Notification target
+  # ---------------------------------------------------------------
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub gamehub-${Stage}-alarms
+      DisplayName: GameHub alarms
+      Tags:
+        - Key: Project
+          Value: GameHub
+
+  AlarmEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlarmEmail
+    Properties:
+      TopicArn: !Ref AlarmTopic
+      Protocol: email
+      Endpoint: !Ref AlarmEmail
+
+  # ---------------------------------------------------------------
+  # Logs. Retention is set here on purpose: the CloudWatch agent would
+  # otherwise create groups that never expire.
+  # ---------------------------------------------------------------
+  NginxAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /gamehub/${Stage}/nginx-access
+      RetentionInDays: !Ref LogRetentionDays
+
+  AppLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /gamehub/${Stage}/app
+      RetentionInDays: !Ref LogRetentionDays
+
+  # ---------------------------------------------------------------
+  # Metrics derived from the structured (JSON) nginx access log.
+  # ---------------------------------------------------------------
+  RequestCountMetric:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref NginxAccessLogGroup
+      FilterPattern: '{ $.status = * }'
+      MetricTransformations:
+        - MetricNamespace: !Sub GameHub/${Stage}
+          MetricName: Requests
+          MetricValue: "1"
+          DefaultValue: 0
+
+  ServerErrorMetric:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref NginxAccessLogGroup
+      FilterPattern: '{ $.status >= 500 }'
+      MetricTransformations:
+        - MetricNamespace: !Sub GameHub/${Stage}
+          MetricName: ServerErrors
+          MetricValue: "1"
+          DefaultValue: 0
+
+  LatencyMetric:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref NginxAccessLogGroup
+      FilterPattern: '{ $.request_time = * }'
+      MetricTransformations:
+        - MetricNamespace: !Sub GameHub/${Stage}
+          MetricName: RequestTimeSeconds
+          MetricValue: $.request_time
+          Unit: Seconds
+          DefaultValue: 0
+
+  ApiLatencyMetric:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref NginxAccessLogGroup
+      FilterPattern: '{ $.uri = "/api/*" && $.request_time = * }'
+      MetricTransformations:
+        - MetricNamespace: !Sub GameHub/${Stage}
+          MetricName: ApiRequestTimeSeconds
+          MetricValue: $.request_time
+          Unit: Seconds
+          DefaultValue: 0
+
+  # ---------------------------------------------------------------
+  # Synthetic availability check: EventBridge -> Lambda every 5 min.
+  # The function logs one JSON line; a metric filter turns it into
+  # the Success metric. No SDK, no outbound AWS API calls needed.
+  # ---------------------------------------------------------------
+  CanaryRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub gamehub-${Stage}-canary-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Project
+          Value: GameHub
+
+  CanaryLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/gamehub-${Stage}-canary
+      RetentionInDays: !Ref LogRetentionDays
+
+  CanaryFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - CanaryLogGroup
+    Properties:
+      FunctionName: !Sub gamehub-${Stage}-canary
+      Runtime: nodejs22.x
+      Handler: index.handler
+      Role: !GetAtt CanaryRole.Arn
+      Timeout: 15
+      MemorySize: 128
+      Description: Synthetic availability check for GameHub
+      Tags:
+        - Key: Project
+          Value: GameHub
+      Code:
+        ZipFile: !Sub
+          - |
+            const https = require("node:https");
+
+            // Two public checks per run: the page and the liveness probe.
+            // One JSON line per check, parsed by a CloudWatch metric filter.
+            function check(url) {
+              return new Promise((resolve) => {
+                const started = Date.now();
+                const request = https.get(url, { timeout: 10000 }, (response) => {
+                  response.resume();
+                  resolve({
+                    ok: response.statusCode === 200 ? 1 : 0,
+                    ms: Date.now() - started,
+                    code: response.statusCode
+                  });
+                });
+                request.on("timeout", () => {
+                  request.destroy();
+                  resolve({ ok: 0, ms: Date.now() - started, code: 0 });
+                });
+                request.on("error", () => {
+                  resolve({ ok: 0, ms: Date.now() - started, code: 0 });
+                });
+              });
+            }
+
+            exports.handler = async () => {
+              const checks = {
+                site: "${SiteUrl}/",
+                health: "${SiteUrl}/api/health"
+              };
+
+              const results = {};
+              for (const [name, url] of Object.entries(checks)) {
+                const outcome = await check(url);
+                results[name] = outcome;
+                console.log(JSON.stringify({
+                  check: name,
+                  url: url,
+                  ok: outcome.ok,
+                  ms: outcome.ms,
+                  code: outcome.code
+                }));
+              }
+
+              return results;
+            };
+          - SiteUrl: !Ref SiteUrl
+
+  CanaryRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub gamehub-${Stage}-canary-schedule
+      Description: Run the GameHub synthetic check every 5 minutes
+      ScheduleExpression: rate(5 minutes)
+      State: ENABLED
+      Targets:
+        - Id: canary
+          Arn: !GetAtt CanaryFunction.Arn
+
+  CanaryInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CanaryFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt CanaryRule.Arn
+
+  CanarySuccessMetric:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref CanaryLogGroup
+      FilterPattern: '{ $.check = * && $.ok = * }'
+      MetricTransformations:
+        - MetricNamespace: !Sub GameHub/${Stage}
+          MetricName: SyntheticSuccess
+          MetricValue: $.ok
+          DefaultValue: 0
+
+  CanaryDurationMetric:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref CanaryLogGroup
+      FilterPattern: '{ $.check = * && $.ms = * }'
+      MetricTransformations:
+        - MetricNamespace: !Sub GameHub/${Stage}
+          MetricName: SyntheticDurationMs
+          MetricValue: $.ms
+          Unit: Milliseconds
+          DefaultValue: 0
+
+  # ---------------------------------------------------------------
+  # Alarms. Every one of them is described in docs/runbook.md.
+  # ---------------------------------------------------------------
+  InstanceStatusAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub gamehub-${Stage}-instance-status-check-failed
+      AlarmDescription: >
+        The EC2 host is failing an instance or system status check —
+        the app is likely unreachable.
+      Namespace: AWS/EC2
+      MetricName: StatusCheckFailed
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref InstanceId
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: breaching
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  CpuAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub gamehub-${Stage}-cpu-high
+      AlarmDescription: >
+        Sustained CPU above 85% on a 2-vCPU burstable instance:
+        page generation or game traffic is outgrowing the host.
+      Namespace: AWS/EC2
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref InstanceId
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 85
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  CpuCreditAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub gamehub-${Stage}-cpu-credit-balance-low
+      AlarmDescription: >
+        CPU credit balance is nearly exhausted. On t3 this means the
+        instance is about to be throttled hard — usually the first
+        sign of a runaway process or a stuck build.
+      Namespace: AWS/EC2
+      MetricName: CPUCreditBalance
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref InstanceId
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 20
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  ServerErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub gamehub-${Stage}-http-5xx
+      AlarmDescription: >
+        More than 5 server errors (5xx) in 5 minutes, counted from the
+        nginx access log.
+      Namespace: !Sub GameHub/${Stage}
+      MetricName: ServerErrors
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  ApiLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub gamehub-${Stage}-api-latency-p99
+      AlarmDescription: >
+        p99 of /api/* request time above 1.5s for 10 minutes — the
+        latency SLO in docs/slo.md is burning error budget.
+      Namespace: !Sub GameHub/${Stage}
+      MetricName: ApiRequestTimeSeconds
+      ExtendedStatistic: p99
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 1.5
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  SyntheticAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub gamehub-${Stage}-synthetic-check-failed
+      AlarmDescription: >
+        The external availability check failed: the public site or the
+        liveness endpoint did not answer 200 within 10 seconds.
+      Namespace: !Sub GameHub/${Stage}
+      MetricName: SyntheticSuccess
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      # No data means the canary itself is broken — that is a page too.
+      TreatMissingData: breaching
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  # ---------------------------------------------------------------
+  # One dashboard: host pressure, edge traffic, error rate, latency,
+  # availability, and the raw log stream for triage.
+  # ---------------------------------------------------------------
+  Dashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub gamehub-${Stage}
+      DashboardBody: !Sub
+        - |
+          {
+            "widgets": [
+              {
+                "type": "text",
+                "x": 0, "y": 0, "width": 24, "height": 2,
+                "properties": {
+                  "markdown": "# GameHub — ${Stage}\nLive on CloudFront (S3 origin) with the API on EC2. Alarms all publish to the `gamehub-${Stage}-alarms` topic. SLO targets and the response to each alarm live in `docs/slo.md` and `docs/runbook.md`."
+                }
+              },
+              {
+                "type": "metric",
+                "x": 0, "y": 2, "width": 12, "height": 6,
+                "properties": {
+                  "title": "Availability — synthetic check (external)",
+                  "region": "${AWS::Region}",
+                  "stat": "Average",
+                  "period": 300,
+                  "metrics": [
+                    [ "GameHub/${Stage}", "SyntheticSuccess" ],
+                    [ ".", "SyntheticDurationMs" ]
+                  ],
+                  "view": "timeSeries",
+                  "yAxis": { "left": { "min": 0, "max": 1 } }
+                }
+              },
+              {
+                "type": "metric",
+                "x": 12, "y": 2, "width": 12, "height": 6,
+                "properties": {
+                  "title": "Edge requests and server errors",
+                  "region": "${AWS::Region}",
+                  "stat": "Sum",
+                  "period": 300,
+                  "metrics": [
+                    [ "GameHub/${Stage}", "Requests" ],
+                    [ ".", "ServerErrors" ]
+                  ]
+                }
+              },
+              {
+                "type": "metric",
+                "x": 0, "y": 8, "width": 12, "height": 6,
+                "properties": {
+                  "title": "API latency — p50 / p99 (seconds)",
+                  "region": "${AWS::Region}",
+                  "period": 300,
+                  "metrics": [
+                    [ "GameHub/${Stage}", "ApiRequestTimeSeconds", { "stat": "p50" } ],
+                    [ ".", ".", { "stat": "p99" } ]
+                  ]
+                }
+              },
+              {
+                "type": "metric",
+                "x": 12, "y": 8, "width": 12, "height": 6,
+                "properties": {
+                  "title": "Host pressure — CPU, CPU credits (t3)",
+                  "region": "${AWS::Region}",
+                  "stat": "Average",
+                  "period": 300,
+                  "metrics": [
+                    [ "AWS/EC2", "CPUUtilization", "InstanceId", "${InstanceId}" ],
+                    [ ".", "CPUCreditBalance", ".", "." ]
+                  ]
+                }
+              },
+              {
+                "type": "metric",
+                "x": 0, "y": 14, "width": 12, "height": 6,
+                "properties": {
+                  "title": "Host memory and root-volume use (CloudWatch agent)",
+                  "region": "${AWS::Region}",
+                  "stat": "Average",
+                  "period": 300,
+                  "metrics": [
+                    [ "CWAgent", "mem_used_percent", "InstanceId", "${InstanceId}" ]
+                  ]
+                }
+              },
+              {
+                "type": "log",
+                "x": 12, "y": 14, "width": 12, "height": 6,
+                "properties": {
+                  "title": "Recent 5xx responses",
+                  "region": "${AWS::Region}",
+                  "query": "SOURCE '/gamehub/${Stage}/nginx-access' | fields ts, uri, status, request_time, remote_addr | filter status >= 500 | sort ts desc | limit 20",
+                  "view": "table"
+                }
+              },
+              {
+                "type": "log",
+                "x": 0, "y": 20, "width": 24, "height": 6,
+                "properties": {
+                  "title": "Application log (backend container)",
+                  "region": "${AWS::Region}",
+                  "query": "SOURCE '/gamehub/${Stage}/app' | fields @timestamp, @message | sort @timestamp desc | limit 50",
+                  "view": "table"
+                }
+              }
+            ]
+          }
+        - Stage: !Ref Stage
+          InstanceId: !Ref InstanceId
+
+Outputs:
+  AlarmTopicArn:
+    Description: >
+      Subscribe an address: aws sns subscribe --topic-arn <arn>
+      --protocol email --notification-endpoint you@example.com
+    Value: !Ref AlarmTopic
+    Export:
+      Name: !Sub gamehub-${Stage}-AlarmTopicArn
+
+  DashboardName:
+    Value: !Ref Dashboard
+    Export:
+      Name: !Sub gamehub-${Stage}-DashboardName
+
+  NginxAccessLogGroup:
+    Value: !Ref NginxAccessLogGroup
+
+  AppLogGroup:
+    Value: !Ref AppLogGroup
+
+  CanaryFunctionName:
+    Description: "Invoke manually: aws lambda invoke --function-name <name> /dev/stdout"
+    Value: !Ref CanaryFunction

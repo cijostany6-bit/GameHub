@@ -8,5 +8,6 @@ FROM nginx:1.29-alpine
 
 COPY frontend/ /usr/share/nginx/html/
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY frontend/nginx-log-format.conf /etc/nginx/conf.d/00-log-format.conf
 
 EXPOSE 80

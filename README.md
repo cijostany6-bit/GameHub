@@ -122,9 +122,42 @@ catalogue and the games require a signed-in player.
   the previous script. HTML (one-minute cache) points at the new version —
   found by watching a stale `script.js` run in the browser after a deploy
 
+### ✅ Completed (Phase 5 — observability)
+
+- **Structured request logs**: nginx emits JSON access logs (`status`,
+  `uri`, `request_time`, `upstream_time`) — CloudWatch parses them without regex
+  guesswork
+- **CloudWatch agent on the host**: ships those logs plus container stdout to
+  `/gamehub/prod/nginx-access` and `/gamehub/prod/app` (7-day retention set by
+  the template), and host `mem`/`disk`/`swap` metrics into the `CWAgent`
+  namespace — installed by user-data, no manual setup
+- **Metrics derived from logs** (`AWS::Logs::MetricFilter`): request count,
+  5xx count, and API latency as a *numeric* extraction (`$.request_time`) for
+  p50/p99 — nginx already knew the numbers, so the app is not instrumented with
+  an extra library to repeat them
+- **External availability check**: EventBridge runs a small Lambda every 5
+  minutes against the public CloudFront URL and `/api/health`; its log line
+  becomes the `SyntheticSuccess` metric — a synthetic check without the
+  CloudWatch Synthetics price tag
+- **Eight alarms** into one SNS topic: synthetic availability (`TreatMissingData:
+  breaching` — silence is a failure), 5xx count, API p99 latency, instance
+  status, CPU, CPU credits, memory and disk. Host-metric alarms treat missing
+  data as `notBreaching`, because a stopped agent is not an outage
+- **One dashboard** (`gamehub-prod`): availability, requests vs errors, latency
+  percentiles, host pressure, and two live log tables (recent 5xx, backend tail)
+- **SLOs with error budgets** ([`docs/slo.md`](docs/slo.md)): 99.5 % availability
+  and p99 ≤ 1.5 s over a rolling 30 days, with the measurement method for each —
+  and an explicit list of what is **not** claimed, because a single-AZ t3.micro
+  cannot honestly promise it
+- **Runbook** ([`docs/runbook.md`](docs/runbook.md)): one section per alarm with
+  the exact SSM/Logs-Insights commands to confirm the cause, plus the
+  revert-to-roll-back path
+- **Verified live, not assumed**: the agent's metric dimensions were read back
+  from `list-metrics` and then written into the template — an alarm with the
+  wrong dimension set sits in `INSUFFICIENT_DATA` forever
+
 ### 🚧 Planned
 
-- **Phase 5 — observability**: metrics, dashboards, alerts, runbooks, SLOs
 - **Phase 6 — local Kubernetes (kind) + Argo CD GitOps**
 - **Phase 7 — security & GDPR hardening** (data deletion flow, SBOM)
 - **Phase 8 — /learn documentation site, PDF export, load-test report**
@@ -262,6 +295,7 @@ GameHub/
 │   ├── cognito.yaml        ← user pool + app client
 │   ├── site.yaml           ← S3 + CloudFront (+ /api/* origin)
 │   ├── backend.yaml        ← EC2 host, security group, IAM, elastic IP
+│   ├── observability.yaml  ← log groups, metric filters, canary, alarms
 │   └── github-oidc.yaml    ← OIDC provider + scoped deploy role
 ├── scripts/
 │   ├── smoke.sh            ← end-to-end checks
@@ -270,7 +304,7 @@ GameHub/
 ├── .github/workflows/
 │   ├── ci.yml              ← lint, tests, coverage, compose smoke, scans
 │   └── deploy.yml          ← OIDC deploy (site + API host)
-├── docs/                   ← step-by-step learning notes
+├── docs/                   ← learning notes, SLOs, runbook, ADRs
 ├── Dockerfile              ← frontend image (nginx)
 ├── docker-compose.yml      ← frontend + backend + db
 ├── Makefile                ← make bootstrap / up / smoke / test / db-reset
@@ -327,7 +361,7 @@ Prefer plain Compose? `docker-compose up -d --build` then `./scripts/smoke.sh` d
 
 ## ☁️ Deploy to AWS
 
-Everything is CloudFormation in [`infra/`](infra/) — four small stacks, each one
+Everything is CloudFormation in [`infra/`](infra/) — five small stacks, each one
 a single command. Stack outputs feed the next stack, so there is no spreadsheet
 of ids to copy by hand.
 
@@ -360,7 +394,24 @@ aws cloudformation deploy --region "$AWS_REGION" \
   --parameter-overrides Stage=prod BackendOriginDomain=<ec2 public dns>
 
 AWS_REGION=$AWS_REGION ./scripts/deploy-frontend.sh
+
+# 5. Observability: log groups + retention, metrics from logs, the synthetic
+#    check, eight alarms and the dashboard. AlarmEmail is optional — without it
+#    the SNS topic is still created and can be subscribed later (see the
+#    TopicArn output), it just has no subscriber yet.
+aws cloudformation deploy --region "$AWS_REGION" \
+  --stack-name gamehub-observability --template-file infra/observability.yaml \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides \
+    Stage=prod \
+    InstanceId=<ec2 instance id> \
+    SiteUrl=<https://cloudfront domain> \
+    AlarmEmail=<you@example.com>
 ```
+
+Deploy the observability stack **before** the host's CloudWatch agent writes its
+first log line: the template owns the log groups so their retention is set, and
+an agent-created group would make that resource fail with `AlreadyExists`.
 
 For continuous deployment, deploy the fourth stack
 (`infra/github-oidc.yaml`) once, then set these GitHub repository variables and
@@ -542,6 +593,10 @@ Live deployment hardening:
 - [x] Sign-in gate stays open (with a loud boot warning) when no pool is configured. *(auth test)*
 - [x] Live site deployed to S3 + CloudFront, API reachable through CloudFront `/api/*`. *(verified live)*
 - [x] Deployment is keyless: GitHub Actions assumes a role via OIDC. *(deploy workflow)*
+- [x] Structured JSON access logs reach CloudWatch Logs. *(verified with Logs Insights)*
+- [x] Log-derived metrics produce data points. *(verified with `get-metric-statistics`)*
+- [x] The synthetic check runs on schedule and its result is a metric, not just a log line. *(verified live)*
+- [x] Every alarm has a real state and a notification target. *(verified with `describe-alarms`)*
 
 ---
 
@@ -570,8 +625,12 @@ Live deployment hardening:
 - Canvas-based UI animation with accessibility (reduced-motion) support
 - Identity and access: Cognito user pools, ID tokens, JWKS-based JWT verification
 - Keyless CI/CD: GitHub Actions OIDC federation and least-privilege deploy roles
-- Infrastructure as code: four CloudFormation stacks with cross-stack outputs
+- Infrastructure as code: five CloudFormation stacks with cross-stack outputs
 - Static hosting and CDN design: private S3 + CloudFront OAC, cache-behaviour split
+- Observability: structured JSON logs, log-derived metrics, metric math on a dashboard
+- Synthetic (black-box) availability monitoring with alarm semantics that treat silence as failure
+- Alert design: 8 actionable alarms, SNS notification path, `TreatMissingData` chosen per signal
+- SLOs and error budgets written before the incident, with a per-alarm runbook
 - Host hardening: SSM-only administration, IMDSv2, prefix-list-restricted ingress
 - Git and GitHub workflows
 - Application troubleshooting
@@ -587,7 +646,7 @@ Live deployment hardening:
 | **2** | Game-y UI: live animated background, self-hosted game fonts, arcade styling | ✅ 2026-10-18 |
 | **3** | Real playable games — every catalogue entry opens a game | ✅ 2026-10-19 |
 | **4** | Auth & live: Cognito (sign-in gate), S3 + CloudFront, EC2 backend, CloudFormation + OIDC CD | ✅ 2026-10-19 |
-| **5** | Observability: metrics, dashboards, alerts, runbooks, SLOs | ⏭️ next |
+| **5** | Observability: structured logs, metrics from logs, synthetic check, 8 alarms, dashboard, SLOs, runbook | ✅ 2026-10-19 |
 | **6** | Local Kubernetes (kind) + Argo CD GitOps | Planned |
 | **7** | Security & GDPR hardening (deletion flow, SBOM) | Planned |
 | **8** | /learn documentation site + PDF export + load-test report | Planned |
