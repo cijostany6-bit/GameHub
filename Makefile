@@ -7,7 +7,7 @@
 
 COMPOSE := $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
 
-.PHONY: bootstrap up down restart logs ps smoke test test-frontend lint coverage db-reset clean help kind-up kind-down argocd-up k8s-dbinit learn
+.PHONY: bootstrap up down restart logs ps smoke test test-frontend lint coverage db-reset clean help kind-up kind-down argocd-up k8s-dbinit learn migrate load-test verify-gdpr
 
 bootstrap: up smoke ## Clone → run: build, start, wait for health, verify endpoints
 	@echo "✔ GameHub is up → http://localhost:8080"
@@ -64,6 +64,17 @@ k8s-dbinit: ## Re-render the Kubernetes DB seed ConfigMap from db/init.sql
 
 learn: ## Build the /learn documentation site and the PDF
 	./scripts/build-pdf.sh
+
+migrate: ## Apply db/migrations to the running database (ledger + checksums)
+	./scripts/migrate.sh
+
+load-test: ## Load test a deployment: make load-test SITE_URL=https://…
+	@test -n "$(SITE_URL)" || (echo "SITE_URL is required, e.g. make load-test SITE_URL=https://example.com"; exit 1)
+	node scripts/load-test.js --url "$(SITE_URL)" \
+		--requests $(or $(REQUESTS),2000) --concurrency $(or $(CONCURRENCY),20)
+
+verify-gdpr: ## Verify account deletion end to end against a deployment
+	./scripts/verify-gdpr.sh
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \

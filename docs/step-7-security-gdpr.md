@@ -3,10 +3,15 @@
 > **Verified by:** the CI job on this commit (51 backend tests, including a real
 > RSA-signed JWT verified against a live JWKS and a hand-rolled SigV4
 > `AdminDeleteUser` call captured and asserted field by field against a local
-> admin endpoint), a migration runner executing for real against MySQL 8.4, and a
-> live end-to-end erasure on production: sign up → submit a score → confirm the
-> row exists → `DELETE /api/me` → confirm the row is gone **and** the user no
-> longer exists in the Cognito pool.
+> admin endpoint), a migration runner applying for real against MySQL 8.4 in CI
+> **and in production** (the deploy log shows `0 already applied, 1 applied now`
+> on the live database), and a live end-to-end erasure run by
+> [`scripts/verify-gdpr.sh`](../scripts/verify-gdpr.sh) against
+> `https://d2qf9zxehny6bk.cloudfront.net`: sign up → confirm → obtain an ID token
+> → `POST /api/scores` (201) → `GET /api/scores/me` (1 row) → `DELETE /api/me`
+> (**204**) → 0 rows remain **and** `admin-get-user` returns
+> `UserNotFoundException`. That run is also what found a real production bug
+> (item 13 below), which is the honest reason it is a script and not a checklist.
 
 ## What was built
 
@@ -90,6 +95,19 @@ repository.
     approval is deliberately absent — this is a one-person repository, and a
     rule that GitHub refuses to satisfy (you cannot approve your own pull
     request) is a rule that gets disabled the first time it is inconvenient.
+13. **A container is one hop further from the metadata service than the host.**
+    With `HttpPutResponseHopLimit: 1` — the AWS default, and what this template
+    originally declared — the token `PUT` from inside the application container
+    is never answered. Measured on the live host: the same request returns
+    `HTTP 200` from the host shell and dies with `ETIMEDOUT` from inside the
+    container. The application sees `fetch failed` (undici's generic wrapper),
+    the handler's catch turns it into `502`, and because the connect hangs for
+    longer than CloudFront's origin timeout, the *user* sees a `504` from the
+    CDN. Three layers separate the symptom from the cause, which is exactly why
+    the value is now `2` **in the template** with the reasoning next to it
+    rather than in a runbook. The live erasure check found this on production
+    after the code had already been merged and deployed — the strongest possible
+    argument for the check being a script that anyone can run.
 
 ## Concepts to understand cold
 
@@ -121,3 +139,7 @@ repository.
 6. *What does the deploy pipeline prove before traffic reaches a user?*
 7. *Which of the four GDPR rights would you implement first in a product, and
    why is that a business decision as much as a legal one?*
+8. *A container cannot reach the instance metadata service although the host can.
+   Where do you look first, and why does a hop limit exist at all?*
+9. *Your verification script found a production bug after the code had passed CI
+   and been merged. What does that say about what CI can and cannot prove?*

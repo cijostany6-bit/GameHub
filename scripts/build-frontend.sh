@@ -26,6 +26,16 @@ cp -R "$ROOT/frontend/." "$BUILD/"
 # Tests and the nginx config are development-only.
 rm -rf "$BUILD/test" "$BUILD/nginx.conf"
 
+# The /learn documentation site (generated from README.md + docs/*.md by
+# scripts/build-learn.js, committed) is published under /learn/ on the same
+# distribution: one origin, no extra hosting, and the PDF download lives
+# next to the pages that describe it. A CI drift check keeps it in step
+# with the documentation it is generated from.
+if [ -d "$ROOT/learn" ]; then
+    mkdir -p "$BUILD/learn"
+    cp -R "$ROOT/learn/." "$BUILD/learn/"
+fi
+
 cat > "$BUILD/config.js" <<EOF
 "use strict";
 

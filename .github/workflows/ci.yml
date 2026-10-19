@@ -133,6 +133,25 @@ jobs:
       - name: Database seed ConfigMap matches db/init.sql
         run: ./scripts/build-k8s-dbinit.sh --check
 
+      - name: /learn site matches the docs it is generated from
+        run: |
+          node scripts/build-learn.js
+          # The PDF is rendered by a headless browser and is not reproducible
+          # in CI, so it is excluded from the comparison; everything the
+          # generator writes is checked.
+          if ! git diff --quiet -- learn ':!learn/*.pdf'; then
+            echo "✘ learn/ has drifted from README.md + docs/*.md"
+            git diff --stat -- learn ':!learn/*.pdf'
+            echo "Run ./scripts/build-pdf.sh locally and commit learn/."
+            exit 1
+          fi
+          # The generator must at least cover every document.
+          for doc in docs/*.md README.md; do
+            base="$(basename "$doc" .md)"
+            case "$base" in README) base=readme ;; esac
+            test -f "learn/$base.html" || { echo "✘ learn/$base.html missing"; exit 1; }
+          done
+
       - name: Validate manifests against the Kubernetes schema
         run: |
           curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Architecture decisions (ADRs) · GameHub /learn</title>
+<meta name="description" content="A Futuristic Gaming Platform Built with AWS &amp; DevOps" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<div class="layout">
+  <aside class="sidebar">
+    <a class="brand" href="index.html">GAME<span>HUB</span></a>
+    <p class="sidebar-sub">/learn</p>
+    <nav class="nav" aria-label="Learning documents">
+      <ul>
+        <li><a href="index.html"><span class="nav-kind">HOME</span>All documents</a></li>
+        <li><a href="readme.html"><span class="nav-kind">OVERVIEW</span>GameHub</a></li>
+        <li><a href="step-0-reproducible-foundation.html"><span class="nav-kind">STEP 0</span>Step 0 — Reproducible Local Foundation ✅ (2026-10-18)</a></li>
+        <li><a href="step-1-tests-and-ci.html"><span class="nav-kind">STEP 1</span>Step 1 — Automated Tests + GitHub Actions CI ✅ (2026-10-18)</a></li>
+        <li><a href="step-2-gamey-ui.html"><span class="nav-kind">STEP 2</span>Step 2 — Game-y UI: Live Background + Self-Hosted Arcade Fonts ✅ (2026-10-18)</a></li>
+        <li><a href="step-3-real-games.html"><span class="nav-kind">STEP 3</span>Step 3 — Real Playable Games ✅ (2026-10-19)</a></li>
+        <li><a href="step-4-auth-and-live.html"><span class="nav-kind">STEP 4</span>Step 4 — Real Auth + Live on AWS ✅ (2026-10-19)</a></li>
+        <li><a href="step-5-observability.html"><span class="nav-kind">STEP 5</span>Step 5 — Observability ✅ (2026-10-19)</a></li>
+        <li><a href="step-6-kubernetes-gitops.html"><span class="nav-kind">STEP 6</span>Step 6 — Local Kubernetes (kind) + Argo CD ✅ (2026-10-19)</a></li>
+        <li><a href="step-7-security-gdpr.html"><span class="nav-kind">STEP 7</span>Step 7 — Security hardening &amp; GDPR ✅ (2026-10-19)</a></li>
+        <li><a href="step-8-learn-site.html"><span class="nav-kind">STEP 8</span>Step 8 — /learn Documentation Site + PDF Export ✅ (2026-10-19)</a></li>
+        <li><a href="decisions.html" class="is-active"><span class="nav-kind">DOC</span>Architecture decisions (ADRs)</a></li>
+        <li><a href="load-test.html"><span class="nav-kind">DOC</span>Load test — what a single t3.micro actually does ✅ (2026-10-19)</a></li>
+        <li><a href="runbook.html"><span class="nav-kind">DOC</span>Runbook — GameHub (prod)</a></li>
+        <li><a href="slo.html"><span class="nav-kind">DOC</span>Service level objectives — GameHub</a></li>
+      </ul>
+    </nav>
+    <div class="sidebar-foot">
+      <a class="btn btn-primary" href="gamehub-guide.pdf">Download the PDF</a>
+      <a class="btn btn-ghost" href="https://d2qf9zxehny6bk.cloudfront.net">Live demo</a>
+      <a class="btn btn-ghost" href="https://github.com/cijostany6-bit/GameHub">GitHub repo</a>
+    </div>
+  </aside>
+  <main id="content" class="content">
+    <div class="doc-meta">
+      <span class="chip">DOC</span>
+      <span class="chip chip-source">docs/decisions.md</span>
+    </div>
+    <article class="md">
+<h1 id="architecture-decisions-adrs">Architecture decisions (ADRs)</h1>
+<p>Every non-obvious choice in this project, in the same shape: <strong>context</strong>, <strong>decision</strong>, <strong>consequences</strong> (including what it costs), <strong>rejected alternatives</strong>. The step documents (<code>docs/step-*.md</code>) tell the story of each phase; this file is the index of the decisions that story is made of.</p>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Decision</th><th>Status</th><th>Phase</th></tr></thead><tbody><tr><td><a href="#adr-001">001</a></td><td>One Compose file for local development and production</td><td>Accepted</td><td>0</td></tr><tr><td><a href="#adr-002">002</a></td><td>MySQL in a container, not RDS</td><td>Accepted</td><td>0</td></tr><tr><td><a href="#adr-003">003</a></td><td>CloudFormation, not Terraform</td><td>Accepted</td><td>4</td></tr><tr><td><a href="#adr-004">004</a></td><td>Keyless deploys with GitHub OIDC</td><td>Accepted</td><td>4</td></tr><tr><td><a href="#adr-005">005</a></td><td>Self-hosted fonts, zero third-party requests</td><td>Accepted</td><td>2</td></tr><tr><td><a href="#adr-006">006</a></td><td>Metrics derived from structured nginx logs</td><td>Accepted</td><td>5</td></tr><tr><td><a href="#adr-007">007</a></td><td>The synthetic check is a scheduled Lambda writing a log line</td><td>Accepted</td><td>5</td></tr><tr><td><a href="#adr-008">008</a></td><td>kind with the Compose images side-loaded</td><td>Accepted</td><td>6</td></tr><tr><td><a href="#adr-009">009</a></td><td>Argo CD with <code>automated</code> + <code>prune</code> + <code>selfHeal</code></td><td>Accepted</td><td>6</td></tr><tr><td><a href="#adr-010">010</a></td><td>JWT verification with <code>node:crypto</code> and the pool's JWKS</td><td>Accepted</td><td>4</td></tr><tr><td><a href="#adr-011">011</a></td><td>One personal-best row per <code>(sub, game)</code>, not a score history</td><td>Accepted</td><td>7</td></tr><tr><td><a href="#adr-012">012</a></td><td>SigV4 by hand over IMDSv2 credentials, no AWS SDK</td><td>Accepted</td><td>7</td></tr><tr><td><a href="#adr-013">013</a></td><td>A checksummed migration runner, not only <code>init.sql</code></td><td>Accepted</td><td>7</td></tr><tr><td><a href="#adr-014">014</a></td><td>Deploy on a successful CI run, not on the push</td><td>Accepted</td><td>7</td></tr><tr><td><a href="#adr-015">015</a></td><td>No package manager in the runtime image</td><td>Accepted</td><td>7</td></tr></tbody></table></div>
+<hr />
+<h2 id="adr-001">ADR-001</h2>
+<p><strong>One Compose file for local development and production</strong></p>
+<p><strong>Context.</strong> The project has to run on a laptop with one command and on an EC2 host. Two definitions of &quot;the stack&quot; drift.</p>
+<p><strong>Decision.</strong> <code>docker-compose.yml</code> is the only definition. The host clones the repository and runs the same file, the same images and the same environment variable names.</p>
+<p><strong>Consequences.</strong> A bug found locally is a bug in production, and the EC2 host needs Git + Docker and nothing else. The host runs MySQL in a container, so the database is stateful inside Docker — acceptable at this size, wrong at scale.</p>
+<p><strong>Rejected.</strong> A separate production compose file (two files to keep in sync); ECS/Fargate (more moving parts than the app).</p>
+<hr />
+<h2 id="adr-002">ADR-002</h2>
+<p><strong>MySQL in a container, not RDS</strong></p>
+<p><strong>Context.</strong> A managed database with backups and patching is what a real service would use; it is also the largest line item in a small AWS bill.</p>
+<p><strong>Decision.</strong> MySQL 8.4 in a container on the host, seeded from <code>db/init.sql</code> on an empty volume.</p>
+<p><strong>Consequences.</strong> Zero cost, and the schema is reproducible from the repository. No automated backups, no multi-AZ, no managed patching — and the project says so rather than implying otherwise. The migration path to RDS is a phase of its own.</p>
+<p><strong>Rejected.</strong> RDS (cost, and it would have hidden the one-command local story); SQLite (removes the realistic connection-pool and migration surface).</p>
+<hr />
+<h2 id="adr-003">ADR-003</h2>
+<p><strong>CloudFormation, not Terraform</strong></p>
+<p><strong>Context.</strong> Infrastructure as code for five stacks: Cognito, S3+CloudFront, the EC2 host, observability and the OIDC provider.</p>
+<p><strong>Decision.</strong> Plain YAML CloudFormation templates in <code>infra/</code>, one per stack, wired with outputs.</p>
+<p><strong>Consequences.</strong> No state file to store, lock or lose, and no third-party provider to trust. The templates are verbose, cross-stack references are awkward, and <code>!If</code>/<code>!Sub</code> are not a programming language.</p>
+<p><strong>Rejected.</strong> Terraform/OpenTofu (an extra state backend to run and secure for five small stacks); CDK (a build step and a runtime for what is mostly declarative configuration).</p>
+<hr />
+<h2 id="adr-004">ADR-004</h2>
+<p><strong>Keyless deploys with GitHub OIDC</strong></p>
+<p><strong>Context.</strong> CI has to reach S3, CloudFront, EC2 (via SSM) and ECR-less hosts.</p>
+<p><strong>Decision.</strong> A GitHub OIDC provider plus an IAM role restricted to this repository, whose trust policy pins the repo and the deploy branch. Credentials are short-lived tokens from <code>sts:AssumeRoleWithWebIdentity</code>.</p>
+<p><strong>Consequences.</strong> Nothing to rotate, nothing to leak, and the role is the audit trail. The trust policy must be kept in step with repository renames — a rename breaks deploys until the condition string is updated.</p>
+<p><strong>Rejected.</strong> Long-lived IAM user access keys in GitHub secrets (a rotation problem and a leak risk); a self-hosted runner (cost, and a runner is not a credential strategy).</p>
+<hr />
+<h2 id="adr-005">ADR-005</h2>
+<p><strong>Self-hosted fonts, zero third-party requests</strong></p>
+<p><strong>Context.</strong> The UI needs a game-style typeface. The obvious way is <code>fonts.googleapis.com</code>.</p>
+<p><strong>Decision.</strong> The four OFL-licensed woff2 files are committed under <code>frontend/fonts/</code> and served from the same origin; the /learn site does the same.</p>
+<p><strong>Consequences.</strong> No visitor IP is disclosed to a third party at page load, which German courts have held needs consent, and no CDN dependency. The woff2 files (~120 KB total) live in the repository, and each font's licence is committed next to it.</p>
+<p><strong>Rejected.</strong> Google Fonts (a data-protection problem for a German audience); a system-font stack (loses the arcade look the project is about).</p>
+<hr />
+<h2 id="adr-006">ADR-006</h2>
+<p><strong>Metrics derived from structured nginx logs</strong></p>
+<p><strong>Context.</strong> The SLOs need request rate, 5xx rate and latency percentiles. A plaintext access log can only be grepped.</p>
+<p><strong>Decision.</strong> nginx writes JSON (<code>frontend/nginx-log-format.conf</code>), the logs go to CloudWatch through the agent, and <em>metric filters</em> extract the numbers. The <code>log_format</code> lives in its own file because it is an http-level directive and the repository's nginx config is a <code>server</code> block.</p>
+<p><strong>Consequences.</strong> The metric definition is a CloudFormation pattern next to the alarm that uses it, and the log line is the source of truth. Metric filters are eventually consistent (~1 minute), a non-matching event still emits the filter's default value (so <code>Sum</code> is safe and <code>Average</code> is diluted), and percentiles can only be approximated from bucketed filters.</p>
+<p><strong>Rejected.</strong> An agent that parses logs into custom metrics (a second parser to maintain); application-level metrics only (loses nginx's view of status codes and timing).</p>
+<hr />
+<h2 id="adr-007">ADR-007</h2>
+<p><strong>The synthetic check is a scheduled Lambda writing a log line</strong></p>
+<p><strong>Context.</strong> Availability should be judged from outside, on a schedule, and it should be visible on a dashboard.</p>
+<p><strong>Decision.</strong> EventBridge runs a small Lambda every 5 minutes; the Lambda requests the real site, asserts the result, and writes <strong>one</strong> JSON log line. A metric filter turns pass/fail into a metric, and the alarm is <code>Sum &lt; 1</code> with <code>TreatMissingData: breaching</code> — silence is a failure, not an unknown.</p>
+<p><strong>Consequences.</strong> No per-check charge and a single code path from the check to the alarm. The threshold semantics are unusual and are written down (<code>docs/step-5-observability.md</code>) precisely because <code>Sum &lt; 1</code> looks wrong at a glance.</p>
+<p><strong>Rejected.</strong> CloudWatch Synthetics canaries (a per-run cost and a second deployment model); external uptime services (a third party, and no path into the dashboard).</p>
+<hr />
+<h2 id="adr-008">ADR-008</h2>
+<p><strong>kind with the Compose images side-loaded</strong></p>
+<p><strong>Context.</strong> Kubernetes manifests need to be exercised somewhere real.</p>
+<p><strong>Decision.</strong> A single-node kind cluster (<code>k8s/kind-config.yaml</code>), loaded with the <strong>same</strong> images the Compose stack builds (<code>imagePullPolicy: Never</code>), with the NodePort published on host 8081 so Compose keeps 8080.</p>
+<p><strong>Consequences.</strong> One image, two orchestrators — a manifest change is tested against the artifact that also runs locally. kind needs a capable container VM (4 CPU / 6 GiB Colima here), and a <code>Never</code> pull policy fails fast when the image was not side-loaded.</p>
+<p><strong>Rejected.</strong> minikube (a VM plus a driver argument per laptop); EKS (real money for a demo); a separate Kubernetes image build (two artifacts that can drift).</p>
+<hr />
+<h2 id="adr-009">ADR-009</h2>
+<p><strong>Argo CD with <code>automated</code> + <code>prune</code> + <code>selfHeal</code></strong></p>
+<p><strong>Context.</strong> &quot;GitOps&quot; is a claim about who owns cluster state.</p>
+<p><strong>Decision.</strong> An Argo CD <code>Application</code> points at <code>k8s/</code> on <code>main</code> with <code>syncPolicy.automated { prune: true, selfHeal: true }</code>.</p>
+<p><strong>Consequences.</strong> The merge is the deploy, and a manual <code>kubectl</code> change is reverted by the controller — verified by scaling a Deployment by hand and watching it return to the declared replica count within 90 seconds. A mistake in <code>k8s/</code> is now a cluster-wide change on merge, which is exactly why CI validates the manifests (kubeconform) and the generated seed ConfigMap before the merge happens.</p>
+<p><strong>Rejected.</strong> <code>kubectl apply</code> from a pipeline (state is whatever the last successful run left behind); Flux (equivalent here, and Argo CD's UI makes the demo legible).</p>
+<hr />
+<h2 id="adr-010">ADR-010</h2>
+<p><strong>JWT verification with <code>node:crypto</code> and the pool's JWKS</strong></p>
+<p><strong>Context.</strong> The API must verify Cognito ID tokens: RS256 signature, <code>iss</code>, <code>aud</code>, <code>exp</code>, <code>token_use</code>, and a key id that rotates.</p>
+<p><strong>Decision.</strong> Fetch the JWKS, cache it, and verify the RS256 signature with <code>node:crypto</code>'s <code>createPublicKey</code>/<code>verify</code> — no <code>jsonwebtoken</code>, no AWS SDK.</p>
+<p><strong>Consequences.</strong> The backend has no authentication dependency to audit, and the verification rules are visible in one file. The JWKS cache, key rotation and the <code>kid</code>-miss refetch path are code this project owns and tests (a forged token, an expired token, a wrong-pool token and a non-ID token each get a <code>401</code>).</p>
+<p><strong>Rejected.</strong> <code>jsonwebtoken</code> (fine, but it hides the checks that are worth demonstrating); API Gateway's Cognito authorizer (removes the app's own authorization surface entirely).</p>
+<hr />
+<h2 id="adr-011">ADR-011</h2>
+<p><strong>One personal-best row per <code>(sub, game)</code>, not a score history</strong></p>
+<p><strong>Context.</strong> &quot;Remember my high score&quot; could be a row per play.</p>
+<p><strong>Decision.</strong> <code>personal_bests</code> has the primary key <code>(user_sub, game)</code> and updates with <code>GREATEST(score, VALUES(score))</code>. The player is referenced by the Cognito <code>sub</code>; the table holds no email address.</p>
+<p><strong>Consequences.</strong> The feature works with one row per player per game, so the data a breach would expose is smaller than it needed to be, and deletion (<code>DELETE /api/me</code>) is a single indexed delete. The cost is real: there is no history, so no leaderboard-over-time, no graphs, no &quot;your last 10 games&quot; — features that would require collecting personal data the app currently has no reason to hold.</p>
+<p><strong>Rejected.</strong> An append-only <code>scores</code> table (a behavioural record collected for a feature that does not exist); keying on email (copying an identifier into a second system for no benefit).</p>
+<hr />
+<h2 id="adr-012">ADR-012</h2>
+<p><strong>SigV4 by hand over IMDSv2 credentials, no AWS SDK</strong></p>
+<p><strong>Context.</strong> Account deletion needs <code>cognito-idp:AdminDeleteUser</code>, which is an admin API: the player's JWT cannot authorize it, so the backend must sign its own AWS request.</p>
+<p><strong>Decision.</strong> <code>backend/cognito.js</code> fetches temporary credentials from the instance metadata service with IMDSv2 (a <code>PUT</code> for a token, the token on every <code>GET</code>) and signs the request with a hand-rolled SigV4 implementation.</p>
+<p><strong>Consequences.</strong> No SDK in the image, no long-lived keys on the host, and the signing algorithm is asserted in tests (canonical request, signed-header list, payload binding, session token included in the signature). The maintenance cost is real: the code is this project's to keep correct, and the tests are the reason that is acceptable.</p>
+<p><strong>Rejected.</strong> <code>@aws-sdk/client-cognito-identity-provider</code> (tens of megabytes and a credential-provider chain for one call); IMDSv1 (any SSRF becomes role theft); a long-lived IAM user key (a secret on disk to rotate and leak).</p>
+<hr />
+<h2 id="adr-013">ADR-013</h2>
+<p><strong>A checksummed migration runner, not only <code>init.sql</code></strong></p>
+<p><strong>Context.</strong> <code>db/init.sql</code> runs once, on an empty data volume. A live database that already has data can never be changed by editing it.</p>
+<p><strong>Decision.</strong> <code>scripts/migrate.sh</code> applies files from <code>db/migrations/</code> in order, recording each in a <code>schema_migrations</code> ledger <strong>with a checksum</strong>, and refuses a migration whose file changed after it was applied. It reaches MySQL through <code>docker compose exec</code> on a host and the <code>mysql</code> client in CI.</p>
+<p><strong>Consequences.</strong> The same script is used by the deploy, by CI, and by a developer, and the ledger answers &quot;what has been applied here?&quot;. The rule that a migration is immutable once applied is a discipline the tool only enforces for files it has seen before.</p>
+<p><strong>Rejected.</strong> Relying on <code>init.sql</code> plus manual <code>ALTER</code> statements on the host (undocumented, unrepeatable); a framework (a dependency for ~100 lines, and the runner is a teaching artifact here).</p>
+<hr />
+<h2 id="adr-014">ADR-014</h2>
+<p><strong>Deploy on a successful CI run, not on the push</strong></p>
+<p><strong>Context.</strong> A push to <code>main</code> should reach production, but only after the tests have judged it — and, with concurrent merges, not a later commit than the one tested.</p>
+<p><strong>Decision.</strong> <code>.github/workflows/deploy.yml</code> triggers on <code>workflow_run</code> for the CI workflow completing on <code>main</code> with <code>conclusion == 'success'</code>, and checks out <code>github.event.workflow_run.head_sha</code>.</p>
+<p><strong>Consequences.</strong> Production receives exactly the commit CI passed. Path filters are gone, so a documentation-only merge re-deploys identical content (idempotent, and worth the safety). The pipeline ends with a smoke test against the public CloudFront URL.</p>
+<p><strong>Rejected.</strong> Deploying on <code>push</code> (a race against CI); a single workflow with jobs depending on each other (couples a 20-minute test run to a deploy trigger).</p>
+<hr />
+<h2 id="adr-015">ADR-015</h2>
+<p><strong>No package manager in the runtime image</strong></p>
+<p><strong>Context.</strong> A Trivy scan of the backend image reported 10 HIGH findings, all inside <code>/usr/local/lib/node_modules/npm</code> — the package manager's own bundled dependency tree, in an image whose entrypoint is <code>node server.js</code>.</p>
+<p><strong>Decision.</strong> Remove npm, npx and corepack from the runtime layer after <code>npm ci</code> has installed the production dependencies.</p>
+<p><strong>Consequences.</strong> A smaller image, fewer findings, and no package manager for an attacker to use if the process is ever compromised. The image can no longer be used for interactive dependency debugging (<code>docker run … npm …</code> needs a build stage or a different image), which is the intended trade.</p>
+<p><strong>Rejected.</strong> Accepting the findings with a <code>.trivyignore</code> (the vulnerable code is not needed at runtime, so removing it beats excusing it); moving to a distroless base (attractive, but it removes the shell this project uses for <code>HEALTHCHECK</code> and for diagnosing the container).</p>
+    </article>
+    <footer class="page-footer">
+      <p>GameHub /learn — generated from <code>README.md</code> and <code>docs/*.md</code> by
+      <code>scripts/build-learn.js</code>. Fonts are self-hosted (OFL); this site makes no third-party requests.</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>
