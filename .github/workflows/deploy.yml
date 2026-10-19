@@ -232,11 +232,16 @@ jobs:
           grep -qi "GameHub" /tmp/home.html || fail "home page has no GameHub markup"
           grep -qi "ENTER THE" /tmp/home.html || fail "home page is not the real hero"
 
-          # 2. The documentation ships with the app, under /learn/.
+          # 2. The documentation ships with the app, under /learn/. The
+          #    marker must exist only on the docs landing page: "GameHub"
+          #    is on both pages, which is how this check once passed while
+          #    /learn/ was serving the game hub's home page.
           curl -fsS "$SITE_URL/learn/" -o /tmp/learn.html
-          grep -qi "GameHub" /tmp/learn.html || fail "/learn/ is not the docs site"
+          grep -q 'readme\.html' /tmp/learn.html \
+            || fail "/learn/ is not the documentation landing page"
           curl -fsS "$SITE_URL/learn/gamehub-guide.pdf" -o /tmp/guide.pdf
           [ "$(wc -c < /tmp/guide.pdf)" -gt 100000 ] || fail "the PDF is truncated"
+          [ "$(head -c 5 /tmp/guide.pdf)" = "%PDF-" ] || fail "the PDF is not a PDF"
 
           # 3. The auth gate is on: without a token, protected routes
           #    must be refused, not silently allowed.

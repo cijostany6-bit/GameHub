@@ -375,3 +375,42 @@ cannot fail for the right reason is not a test.
 (letting the check reshape the product); asserting only that the routes answer
 (a 401 and a 200 are both "answering" — the cheapest way to have a green check
 that proves nothing).
+
+---
+
+## ADR-017
+
+**Directory URLs are rewritten at the edge, not stored as folder objects**
+
+**Context.** `/learn/` answered **200 with the game hub's landing page**. An S3
+origin behind an Origin Access Control is a REST origin and has no index
+document: a request for the `learn/` key is a 403, and the distribution's custom
+error responses turn a 403 into `/index.html` with a 200. The deploy's smoke
+test passed on that wrong page, because its only assertion (`GameHub`) is true
+of both pages.
+
+Something has to resolve `/learn/`. Three candidates: write `/learn/index.html`
+in every link, store a real object under the key `learn/`, or rewrite the URI at
+the edge.
+
+**Decision.** A CloudFront Function on the viewer request of the static cache
+behaviour appends `index.html` to a URI that ends in `/`, and treats an
+extensionless final segment as a directory so `/learn` works too. It returns
+`/api/*` unchanged, so the function is correct independently of which cache
+behaviour it is attached to. Its ten-to-twelve URI cases are exercised locally
+before it is published.
+
+**Consequences.** `/learn/`, `/learn` and every deep link work; the bucket stays
+dumb; the cost is nil at this size (the CloudFront Functions free tier is two
+million requests a month against a few thousand here). The trade is one more
+piece of logic between the user and the object, so it fails open — an unmatched
+URI behaves exactly as it did before — and it is small enough to read in one
+sitting.
+
+**Rejected.** Uploading the landing page *also* as the key `learn/` (S3 permits
+it, but `aws s3 sync --delete` does not know it is meant to exist, so it would be
+deleted and restored on every deploy — a one-second outage per release in
+exchange for saving twelve lines); linking to `/learn/index.html` everywhere
+(works, and the docs' own links do use explicit `.html`, but `/learn/` is the
+URL a person types or bookmarks, and a landing page that renders the wrong site
+is a bug however it was linked).

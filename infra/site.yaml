@@ -87,6 +87,11 @@ Resources:
           ViewerProtocolPolicy: redirect-to-https
           Compress: true
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # CachingOptimized (managed)
+          FunctionAssociations:
+            # Only the static behaviour gets the rewrite; /api/* is a
+            # separate behaviour and never runs this code.
+            - EventType: viewer-request
+              FunctionARN: !GetAtt DirectoryIndexFunction.FunctionARN
         CacheBehaviors:
           - !If
             - HasBackend
@@ -116,6 +121,56 @@ Resources:
             ResponsePagePath: /index.html
         ViewerCertificate:
           CloudFrontDefaultCertificate: true
+
+  # ---------------------------------------------------------------
+  # Directory URLs, resolved at the edge.
+  #
+  # S3 as a REST origin (which is what an Origin Access Control uses)
+  # has no notion of an index document for a "folder": a request for
+  # /learn/ asks for the key "learn/", which does not exist. The
+  # custom error responses below then hide that 403 behind
+  # /index.html — so /learn/ answered 200 with the game hub's landing
+  # page. A wrong page wearing a success status is worse than an
+  # error, because nothing reports it.
+  #
+  # Appending index.html to any URI that ends in "/" is exactly what
+  # an S3 *website* endpoint would do. Doing it in a viewer-request
+  # function instead keeps the bucket honest — no zero-byte "folder"
+  # objects that a `--delete` sync has to be taught to spare — and
+  # costs nothing at this size: the CloudFront Functions free tier is
+  # two million requests a month, and the whole site sees a few
+  # thousand.
+  # ---------------------------------------------------------------
+  DirectoryIndexFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub gamehub-${Stage}-directory-index
+      AutoPublish: true
+      FunctionConfig:
+        Comment: !Sub "Append index.html to directory-style URLs (${Stage})"
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+            var request = event.request;
+            var uri = request.uri;
+
+            // The API is a separate cache behaviour, so this function
+            // should never see these paths. Saying so explicitly means
+            // the function stays correct if that routing ever changes.
+            if (uri.startsWith("/api/")) {
+                return request;
+            }
+
+            if (uri.endsWith("/")) {
+                // /learn/ → /learn/index.html
+                request.uri = uri + "index.html";
+            } else if (uri.lastIndexOf(".") < uri.lastIndexOf("/")) {
+                // No extension in the last segment: treat it as a
+                // directory, so /learn works as well as /learn/.
+                request.uri = uri + "/index.html";
+            }
+            return request;
+        }
 
   SiteBucketPolicy:
     Type: AWS::S3::BucketPolicy

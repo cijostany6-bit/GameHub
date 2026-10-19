@@ -250,7 +250,10 @@ und einen CI-Lauf zurückführbar.
 - **Zusammen mit der App veröffentlicht**: `build-frontend.sh` kopiert `learn/`
   in das deploybare Artefakt, sodass **dieselbe** CloudFront-Distribution das
   Handbuch unter **`/learn/`** ausliefert — kein zweiter Bucket, kein zweites CDN
-  und keine Chance, dass der Root-Sync die Doku versehentlich löscht
+  und keine Chance, dass der Root-Sync die Doku versehentlich löscht. `/learn/`
+  und `/learn` löst eine zwölfzeilige CloudFront-Funktion auf, kein
+  Ordner-Objekt im Bucket (ADR-017) — vorher antwortete `/learn/` mit **200 und
+  der Startseite des Spielhubs**
 - **Ein herunterladbares PDF**: `scripts/build-pdf.sh` druckt die
   druckoptimierte `learn/guide.html` über den auf dem Rechner ohnehin
   vorhandenen Browser (A4-`@page`-CSS) nach `learn/gamehub-guide.pdf`
@@ -270,7 +273,7 @@ und einen CI-Lauf zurückführbar.
   Zeile als auch die Identität verschwunden sind — inklusive Aufräumen im
   Fehlerfall
 - **Architekturentscheidungen in einer Datei**: [`docs/decisions.md`](docs/decisions.md)
-  — 16 Entscheidungen in den Formen Kontext / Entscheidung / Konsequenzen /
+  — 17 Entscheidungen in den Formen Kontext / Entscheidung / Konsequenzen /
   verworfene Alternativen, jede mit Angabe dessen, was sie kostet
 
 ### 🚧 Nächstes (bewusst nicht begonnen)
