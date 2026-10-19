@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>GameHub | Create account</title>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <!-- Navigation -->
+  <header class="navbar">
+
+    <a href="index.html" class="logo">
+      GAME<span>HUB</span>
+    </a>
+
+    <nav class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="games.html">Games</a>
+      <a href="index.html#tournaments">Tournaments</a>
+      <a href="index.html#leaderboard">Leaderboard</a>
+    </nav>
+
+    <a class="nav-button" href="signin.html">Sign in</a>
+
+  </header>
+
+
+  <main class="auth-main">
+
+    <section class="auth-panel">
+
+      <p class="eyebrow">NEW PLAYER</p>
+      <h1>CREATE ACCOUNT</h1>
+      <p class="auth-sub">
+        Register with your email — we will send a confirmation code.
+      </p>
+
+      <div class="auth-notice" id="auth-notice" hidden>
+        <p>
+          Authentication is not configured in this deployment — the app
+          runs in local open mode.
+        </p>
+        <a class="secondary-button" href="games.html">ENTER ANYWAY</a>
+      </div>
+
+      <!-- Step 1: credentials -->
+      <form class="auth-form" id="signup-form" novalidate>
+
+        <label class="auth-field">
+          <span>EMAIL</span>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            autocomplete="email"
+            required
+            placeholder="player@example.com" />
+        </label>
+
+        <label class="auth-field">
+          <span>PASSWORD</span>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            autocomplete="new-password"
+            required
+            minlength="8"
+            placeholder="At least 8 characters" />
+        </label>
+
+        <label class="auth-field">
+          <span>CONFIRM PASSWORD</span>
+          <input
+            type="password"
+            id="confirm"
+            name="confirm"
+            autocomplete="new-password"
+            required
+            minlength="8"
+            placeholder="Repeat your password" />
+        </label>
+
+        <p class="auth-error" id="auth-error" hidden></p>
+
+        <button class="primary-button" type="submit" id="submit-button">
+          CREATE ACCOUNT
+        </button>
+
+      </form>
+
+      <!-- Step 2: confirmation code -->
+      <form class="auth-form" id="confirm-form" hidden novalidate>
+
+        <label class="auth-field">
+          <span>CONFIRMATION CODE</span>
+          <input
+            type="text"
+            id="code"
+            name="code"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            required
+            placeholder="123456" />
+        </label>
+
+        <p class="auth-error" id="confirm-error" hidden></p>
+
+        <button class="primary-button" type="submit" id="confirm-button">
+          CONFIRM &amp; SIGN IN
+        </button>
+
+      </form>
+
+      <p class="auth-alt">
+        Already registered? <a href="signin.html">Sign in</a>
+      </p>
+
+    </section>
+
+  </main>
+
+  <script src="config.js"></script>
+  <script src="auth.js"></script>
+  <script src="bg.js" defer></script>
+  <script>
+    "use strict";
+
+    const auth = window.GameHubAuth;
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get("next") || "games.html";
+
+    const signupForm = document.getElementById("signup-form");
+    const confirmForm = document.getElementById("confirm-form");
+    const errorBox = document.getElementById("auth-error");
+    const confirmError = document.getElementById("confirm-error");
+    const submitButton = document.getElementById("submit-button");
+    const confirmButton = document.getElementById("confirm-button");
+    const emailInput = document.getElementById("email");
+
+    if (!auth.configured()) {
+      document.getElementById("auth-notice").hidden = false;
+      signupForm.hidden = true;
+    }
+
+    function showError(box, message) {
+      box.textContent = message;
+      box.hidden = false;
+    }
+
+    signupForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      errorBox.hidden = true;
+
+      const email = emailInput.value.trim();
+      const password = document.getElementById("password").value;
+      const confirm = document.getElementById("confirm").value;
+
+      if (password !== confirm) {
+        showError(errorBox, "Passwords do not match");
+        return;
+      }
+
+      submitButton.disabled = true;
+      submitButton.textContent = "CREATING…";
+
+      try {
+        const result = await auth.signUp(email, password);
+        if (result.UserConfirmed) {
+          // Pool configured without email verification — straight in.
+          await auth.signIn(email, password);
+          window.location.replace(next);
+          return;
+        }
+        signupForm.hidden = true;
+        confirmForm.hidden = false;
+        document.getElementById("code").focus();
+      } catch (error) {
+        showError(errorBox, error.message || "Could not create the account");
+        submitButton.disabled = false;
+        submitButton.textContent = "CREATE ACCOUNT";
+      }
+    });
+
+    confirmForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      confirmError.hidden = true;
+      confirmButton.disabled = true;
+      confirmButton.textContent = "CONFIRMING…";
+
+      const email = emailInput.value.trim();
+      const code = document.getElementById("code").value.trim();
+
+      try {
+        await auth.confirmSignUp(email, code);
+        await auth.signIn(email, document.getElementById("password").value);
+        window.location.replace(next);
+      } catch (error) {
+        showError(confirmError, error.message || "Invalid code");
+        confirmButton.disabled = false;
+        confirmButton.textContent = "CONFIRM & SIGN IN";
+      }
+    });
+  </script>
+</body>
+
+</html>

@@ -9,6 +9,7 @@
 const express = require("express");
 const cors = require("cors");
 const { pool, ping } = require("./db");
+const { requireAuth, authEnabled } = require("./auth");
 
 const app = express();
 
@@ -23,6 +24,29 @@ const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:8080")
 
 app.use(cors({ origin: allowedOrigins }));
 app.use(express.json({ limit: "100kb" }));
+
+// ---------------------------------------------------------
+// Authentication gate (Phase 4). Enforced ONLY when a Cognito
+// user pool is configured; health/readiness probes stay open
+// so orchestrators can always reach them.
+// ---------------------------------------------------------
+app.use("/api", (req, res, next) => {
+    if (req.path === "/health" || req.path === "/ready") {
+        next();
+        return;
+    }
+    requireAuth(req, res, next);
+});
+
+if (!authEnabled()) {
+    console.warn(JSON.stringify({
+        ts: new Date().toISOString(),
+        level: "warn",
+        msg: "auth_disabled",
+        detail: "COGNITO_REGION/USER_POOL_ID/CLIENT_ID not set — " +
+            "API is open. Configure the pool to enforce sign-in."
+    }));
+}
 
 // Structured access log: one JSON object per line — ready for
 // the observability stack in Phase 3.
@@ -108,8 +132,7 @@ app.get("/api/games", async (req, res) => {
 
 // Single game — powers play.html (the runner needs one title,
 // not the whole catalogue). Unknown or non-numeric ids: 404.
-app.get("/api/games/:id", async (req, res) => {
-    try {
+app.get("/api/games/:id", async (req, res) => {    try {
         const [rows] = await pool.query(
             "SELECT id, name, category, description FROM games WHERE id = ?",
             [req.params.id]
@@ -128,6 +151,21 @@ app.get("/api/games/:id", async (req, res) => {
         }));
         res.status(500).json({ error: "Failed to retrieve game" });
     }
+});
+
+// ---------------------------------------------------------
+// Identity echo — proves the JWT was verified end to end.
+// ---------------------------------------------------------
+app.get("/api/me", (req, res) => {
+    if (!authEnabled()) {
+        res.status(401).json({ error: "Authentication is not configured" });
+        return;
+    }
+    res.json({
+        sub: req.user.sub,
+        email: req.user.email,
+        username: req.user.username
+    });
 });
 
 // ---------------------------------------------------------

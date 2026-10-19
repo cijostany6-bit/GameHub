@@ -1,0 +1,160 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  GameHub - static frontend on S3 behind CloudFront (Phase 4).
+  The bucket is private; CloudFront reads it through an Origin
+  Access Control. Free tier: 1 TB CloudFront + 5 GB S3.
+
+Parameters:
+  Stage:
+    Type: String
+    Default: prod
+    AllowedPattern: "[a-z0-9-]+"
+
+  BackendOriginDomain:
+    Type: String
+    Default: ""
+    Description: >
+      Public DNS name (or IP) of the EC2 backend. Leave empty to
+      deploy the frontend first and set it later — /api/* requests
+      only work once this is filled in.
+
+  BackendOriginPort:
+    Type: Number
+    Default: 8080
+    Description: Port nginx listens on inside the EC2 host.
+
+Conditions:
+  HasBackend: !Not [!Equals [!Ref BackendOriginDomain, ""]]
+
+Resources:
+
+  SiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub gamehub-site-${Stage}-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Project
+          Value: GameHub
+
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub gamehub-oac-${Stage}
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub GameHub ${Stage}
+        PriceClass: PriceClass_100
+        HttpVersion: http2
+        IPV6Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: site
+            DomainName: !GetAtt SiteBucket.RegionalDomainName
+            OriginAccessControlId: !Ref OriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+          - !If
+            - HasBackend
+            - Id: api
+              DomainName: !Ref BackendOriginDomain
+              CustomOriginConfig:
+                OriginProtocolPolicy: http-only
+                OriginSSLProtocols:
+                  - TLSv1.2
+                HTTPPort: !Ref BackendOriginPort
+                HTTPSPort: 443
+            - !Ref AWS::NoValue
+        DefaultCacheBehavior:
+          TargetOriginId: site
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # CachingOptimized (managed)
+        CacheBehaviors:
+          - !If
+            - HasBackend
+            - PathPattern: /api/*
+              TargetOriginId: api
+              ViewerProtocolPolicy: redirect-to-https
+              # API responses must never be cached at the edge.
+              CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # CachingDisabled (managed)
+              OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3 # AllViewer
+              AllowedMethods:
+                - GET
+                - HEAD
+                - OPTIONS
+                - PUT
+                - PATCH
+                - POST
+                - DELETE
+              Compress: true
+            - !Ref AWS::NoValue
+        CustomErrorResponses:
+          # Static hosting: let the SPA-ish site handle unknown paths.
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+
+  SiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SiteBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontReadOnly
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${SiteBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub
+                  - arn:aws:cloudfront::${AWS::AccountId}:distribution/${DistId}
+                  - DistId: !Ref Distribution
+
+Outputs:
+  BucketName:
+    Description: S3 bucket that receives the frontend artifact.
+    Value: !Ref SiteBucket
+    Export:
+      Name: !Sub gamehub-${Stage}-SiteBucket
+
+  DistributionId:
+    Description: CloudFront distribution id (for cache invalidation).
+    Value: !Ref Distribution
+    Export:
+      Name: !Sub gamehub-${Stage}-DistributionId
+
+  SiteUrl:
+    Description: Public site URL.
+    Value: !Sub https://${Distribution.DomainName}
+    Export:
+      Name: !Sub gamehub-${Stage}-SiteUrl
+
+  DistributionDomain:
+    Description: CloudFront domain (CORS origin for the backend).
+    Value: !GetAtt Distribution.DomainName

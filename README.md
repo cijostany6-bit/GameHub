@@ -4,16 +4,17 @@
 
 [![CI](https://github.com/cijostany6-bit/GameHub/actions/workflows/ci.yml/badge.svg)](https://github.com/cijostany6-bit/GameHub/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Tests](https://img.shields.io/badge/tests-40%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-64%20passing-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-%E2%89%A580%25%20gated-blue)
 
 GameHub is a portfolio project that combines a futuristic gaming interface with a containerized Node.js backend and a MySQL database — all runnable locally with one command. It demonstrates how frontend applications, backend APIs, container networking, reverse proxies, databases, tests and CI pipelines work together.
 
 The project is being evolved into a production-style application: automated CI/CD, infrastructure as code on AWS, monitoring, and Kubernetes (local kind cluster + Argo CD).
 
-> **Status — Phase 3 complete (2026-10-19):** tested, CI'd, game-y, and
-> **actually playable**. All 12 catalogue entries open real games (6 engines),
-> 40 automated tests, live arcade background, GDPR-clean fonts.
+> **Status — Phase 4 complete (2026-10-19):** tested, CI'd, game-y, playable,
+> and **live on AWS**. 64 automated tests, a Cognito sign-in gate, the static
+> site on S3 + CloudFront, the API on EC2, all described as CloudFormation and
+> deployed by keyless GitHub OIDC.
 
 ---
 
@@ -84,15 +85,34 @@ The project is being evolved into a production-style application: automated CI/C
 - An engine test found and fixed a real stall bug (dead-centre breakout hit →
   vertical ball → unwinnable game)
 
+### ✅ Completed (Phase 4 — real auth + live on AWS)
+
+- **Cognito sign-in gate**: sign-up with email confirmation, sign-in, sign-out.
+  The static frontend talks to Cognito's REST API directly (no Amplify, no SDK)
+  and sends the ID token as a `Bearer` header on every `/api/*` call
+- **Server-side token verification** (`backend/auth.js`): RS256 signature checked
+  against the pool's JWKS with `node:crypto`, plus `iss`, `aud`/`client_id`,
+  `exp` and `token_use` — no `jsonwebtoken` dependency
+- **Honest fail-open**: the gate is enforced only when the pool is configured;
+  local development runs open and the backend logs an `auth_disabled` warning
+  at boot — never a silent bypass
+- **Static site on S3 + CloudFront**: private bucket, CloudFront Origin Access
+  Control, `/api/*` behaviour with caching disabled, HTML short-cache vs assets
+  long-cache
+- **API host on EC2** running the *same* `docker-compose.yml` as local
+  development (nginx + Express + MySQL), with a 2 GB swap file for headroom
+- **No SSH**: the security group opens port 8080 to the AWS-managed CloudFront
+  origin-facing prefix list only; administration is via SSM Session Manager,
+  IMDSv2 is required and the root volume is encrypted
+- **Four CloudFormation stacks** (`infra/cognito.yaml`, `site.yaml`,
+  `backend.yaml`, `github-oidc.yaml`) — one command per stack, outputs wired
+  into the next
+- **Keyless deploys**: GitHub Actions assumes a scoped role through OIDC
+  (no AWS access keys anywhere); the workflow publishes the site, invalidates
+  CloudFront and rolls out the API host over SSM
+
 ### 🚧 Planned
 
-- **Phase 2 — game-y UI overhaul**: live animated background, game fonts
-  (self-hosted for GDPR), arcade-style styling across all pages
-- **Phase 3 — real playable games**: every catalogue entry opens an actual
-  in-browser game
-- **Phase 4 — auth & live deployment**: Cognito user pool (sign-up/sign-in gate
-  before the app), static frontend on **S3 + CloudFront**, backend stack on
-  **EC2**, all as CloudFormation with GitHub Actions OIDC deploy
 - **Phase 5 — observability**: metrics, dashboards, alerts, runbooks, SLOs
 - **Phase 6 — local Kubernetes (kind) + Argo CD GitOps**
 - **Phase 7 — security & GDPR hardening** (data deletion flow, SBOM)
@@ -135,7 +155,36 @@ The project is being evolved into a production-style application: automated CI/C
 5. Express processes the request and queries the MySQL container over the private Docker network.
 6. The backend returns JSON, which the frontend uses to render game cards.
 
-**Important:** The browser accesses the frontend through port `8080`. The Nginx container communicates with the backend using Docker networking, and the backend port is **not published to the host** — the database runs as a local MySQL container (a managed cloud database arrives with the infrastructure-as-code phase).
+**Important:** The browser accesses the frontend through port `8080`. The Nginx container communicates with the backend using Docker networking, and the backend port is **not published to the host** — the database runs as a local MySQL container (managed by hand, not by IaC — see the note in the Database section).
+
+### Live deployment (Phase 4)
+
+```text
+                        Browser
+                           |
+                           | HTTPS            Cognito user pool
+                           v                  (sign-up / sign-in)
+                   CloudFront  <---------------------------+
+                     |      |                              |
+        default behavior|     \__ /api/* (caching disabled)  |
+                        v                    |              |
+                  S3 bucket                  v              |
+          (private, OAC, static UI)     EC2 t2.micro :8080  |
+                                             |              |
+                                    SG: CloudFront prefix   |
+                                    list only, no SSH; SSM  |
+                                             v              |
+                                 nginx → Express → MySQL    |
+                                 (same compose stack)       |
+                                             |              |
+                                             +--- JWKS -----+
+```
+
+The browser signs in against Cognito, receives an **ID token**, and sends it as
+`Authorization: Bearer <token>` on every API call. The backend verifies the
+token's RS256 signature against the pool's public JWKS — the frontend guard is
+UX, the API is the security boundary.
+
 
 ---
 
@@ -156,6 +205,12 @@ The project is being evolved into a production-style application: automated CI/C
 | GitHub | Source code hosting |
 | Colima | Local Docker runtime on macOS |
 | Make | One-command developer workflow (`make bootstrap`) |
+| Amazon Cognito | Player sign-up / sign-in, issues the ID token the API verifies |
+| Amazon S3 + CloudFront | Static site hosting (private bucket, OAC) and global edge delivery |
+| Amazon EC2 | Hosts the compose stack (nginx + API + MySQL) |
+| AWS CloudFormation | All infrastructure as code (`infra/*.yaml`) |
+| AWS Systems Manager | Keyless administration and deploys run over SSM, without SSH |
+| GitHub Actions OIDC | Keyless deploys: short-lived AWS credentials, no stored secrets |
 
 ---
 
@@ -164,27 +219,50 @@ The project is being evolved into a production-style application: automated CI/C
 ```text
 GameHub/
 ├── frontend/
-│   ├── index.html
-│   ├── games.html
-│   ├── script.js
+│   ├── index.html          ← landing page (hero, tournaments, leaderboard)
+│   ├── games.html          ← catalogue (rendered from the API)
+│   ├── play.html           ← game runner host (READY → PLAYING → GAME OVER)
+│   ├── signin.html         ← Cognito sign-in
+│   ├── signup.html         ← Cognito sign-up + email confirmation step
+│   ├── script.js           ← homepage + catalogue logic
+│   ├── play.js             ← runner: ENGINE_MAP, HUD, high scores
+│   ├── engines.js          ← 6 dependency-free canvas game engines
+│   ├── auth.js             ← Cognito REST client, session, page guard
+│   ├── config.js           ← runtime config (local dev: auth off)
+│   ├── bg.js               ← animated arcade background
 │   ├── style.css
-│   └── nginx.conf
+│   ├── fonts/              ← self-hosted game fonts (OFL)
+│   ├── nginx.conf
+│   └── test/               ← engine, mapping contract and auth tests
 ├── backend/
 │   ├── Dockerfile
 │   ├── .dockerignore
 │   ├── .env.example        ← copy to .env only for non-Docker runs
 │   ├── db.js               ← connection pool
+│   ├── auth.js             ← Cognito JWKS verification (no SDK)
 │   ├── app.js              ← Express app (exported for tests)
 │   ├── server.js           ← HTTP entrypoint
+│   ├── test/               ← unit, integration and auth suites
 │   ├── package.json
 │   └── package-lock.json
 ├── db/
 │   └── init.sql            ← schema + seed (runs on first boot)
+├── infra/
+│   ├── cognito.yaml        ← user pool + app client
+│   ├── site.yaml           ← S3 + CloudFront (+ /api/* origin)
+│   ├── backend.yaml        ← EC2 host, security group, IAM, elastic IP
+│   └── github-oidc.yaml    ← OIDC provider + scoped deploy role
 ├── scripts/
-│   └── smoke.sh            ← end-to-end checks (CI will reuse it)
+│   ├── smoke.sh            ← end-to-end checks
+│   ├── build-frontend.sh   ← builds the deployable static artifact
+│   └── deploy-frontend.sh  ← S3 sync + CloudFront invalidation
+├── .github/workflows/
+│   ├── ci.yml              ← lint, tests, coverage, compose smoke, scans
+│   └── deploy.yml          ← OIDC deploy (site + API host)
+├── docs/                   ← step-by-step learning notes
 ├── Dockerfile              ← frontend image (nginx)
 ├── docker-compose.yml      ← frontend + backend + db
-├── Makefile                ← make bootstrap / up / down / smoke / db-reset
+├── Makefile                ← make bootstrap / up / smoke / test / db-reset
 ├── .dockerignore
 ├── .gitignore
 └── README.md
@@ -224,6 +302,8 @@ make bootstrap        # build → start → wait for health → run smoke tests
 make ps               # container status (healthy?)
 make logs             # tail all logs
 make smoke            # re-run the end-to-end checks
+make test             # backend unit + integration tests (needs MySQL)
+make test-frontend    # game-engine, mapping-contract and auth tests (Node only)
 make down             # stop, keep database data
 make db-reset         # wipe + re-seed the database
 make clean            # full teardown incl. images and DB volume
@@ -231,6 +311,59 @@ make help             # list all targets
 ```
 
 Prefer plain Compose? `docker-compose up -d --build` then `./scripts/smoke.sh` does the same.
+
+---
+
+## ☁️ Deploy to AWS
+
+Everything is CloudFormation in [`infra/`](infra/) — four small stacks, each one
+a single command. Stack outputs feed the next stack, so there is no spreadsheet
+of ids to copy by hand.
+
+```bash
+export AWS_REGION=eu-central-1
+
+# 1. Cognito user pool + app client
+aws cloudformation deploy --region "$AWS_REGION" \
+  --stack-name gamehub-cognito --template-file infra/cognito.yaml \
+  --parameter-overrides Stage=prod
+
+# 2. S3 + CloudFront (deployed first without an API origin)
+aws cloudformation deploy --region "$AWS_REGION" \
+  --stack-name gamehub-site --template-file infra/site.yaml \
+  --parameter-overrides Stage=prod
+
+# 3. EC2 host running the compose stack (needs the CloudFront domain)
+aws cloudformation deploy --region "$AWS_REGION" \
+  --stack-name gamehub-backend --template-file infra/backend.yaml \
+  --parameter-overrides \
+    Stage=prod \
+    CognitoUserPoolId=<pool id> \
+    CognitoClientId=<client id> \
+    SiteOrigin=<https://cloudfront domain> \
+    DbPassword=<16+ chars> RootDbPassword=<16+ chars>
+
+# 4. Re-deploy the site stack with the API origin attached, then publish
+aws cloudformation deploy --region "$AWS_REGION" \
+  --stack-name gamehub-site --template-file infra/site.yaml \
+  --parameter-overrides Stage=prod BackendOriginDomain=<ec2 public dns>
+
+AWS_REGION=$AWS_REGION ./scripts/deploy-frontend.sh
+```
+
+For continuous deployment, deploy the fourth stack
+(`infra/github-oidc.yaml`) once, then set these GitHub repository variables and
+push to `main` — the [deploy workflow](.github/workflows/deploy.yml) does the
+rest through OIDC, with no AWS keys stored anywhere:
+
+`AWS_REGION`, `AWS_DEPLOY_ROLE_ARN`, `SITE_BUCKET`, `DISTRIBUTION_ID`,
+`INSTANCE_ID`, `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID`.
+
+**Cost note (honest):** the site (S3 + CloudFront), Cognito and the four
+CloudFormation stacks are inside the free tier at this traffic level. The EC2
+instance is free-tier eligible only on free-tier accounts — otherwise it is
+around $8/month for a `t3.micro`. Tear everything down with
+`aws cloudformation delete-stack` in reverse order.
 
 ---
 
@@ -243,15 +376,27 @@ The following endpoints are implemented in the current application.
 | GET | `/api/health` | **Liveness** — process is up (never touches the database) |
 | GET | `/api/ready` | **Readiness** — database reachable, safe to route traffic (503 otherwise) |
 | GET | `/api/games` | Retrieve games from the database |
+| GET | `/api/games/:id` | Single game (powers the runner); 404 for unknown *and* non-numeric ids |
+| GET | `/api/me` | Echoes the verified Cognito identity — proof the token was checked |
 
 The API is reachable **only through the nginx proxy on `:8080`** — port `3000`
 is deliberately not published to the host (use `docker-compose exec backend …`
 if you need direct access from inside the network).
 
+**Auth behaviour:** middleware on every `/api/*` route except the two probes. If
+the Cognito pool is configured (that is: in the deployment), requests without a
+valid ID token get `401 {"error":"Unauthorized"}`. If it is not configured (local
+development), requests pass through and the backend logs `auth_disabled` at boot
+— so the app is never broken, but the bypass is never silent either.
+
 ```bash
 curl http://localhost:8080/api/health
 curl http://localhost:8080/api/ready
 curl http://localhost:8080/api/games
+curl http://localhost:8080/api/games/4
+
+# with the pool configured, protected routes need the ID token:
+curl -H "Authorization: Bearer $ID_TOKEN" http://localhost:8080/api/me
 ```
 
 Or run the full check suite: `make smoke`.
@@ -260,10 +405,13 @@ Or run the full check suite: `make smoke`.
 
 ## 🗄️ Database
 
-GameHub uses **MySQL 8.4 in a local container**, seeded automatically from
+GameHub uses **MySQL 8.4 in a container**, seeded automatically from
 [`db/init.sql`](db/init.sql) on the first start of an empty volume. This makes a
-fresh clone reproducible with no cloud account and no secrets. A managed
-database (AWS RDS) arrives in Phase 4 via infrastructure as code.
+fresh clone reproducible with no cloud account and no secrets — and the deployed
+stack runs the *same* container on the EC2 host, so there is exactly one
+database setup to reason about. Moving to RDS (multi-AZ, automated backups,
+managed patching) is a deliberate cost/ops trade-off left for a later phase
+rather than a claim made here.
 
 Reset to a clean seeded state any time with `make db-reset`.
 
@@ -336,7 +484,26 @@ docker-compose up -d --build backend
 - The API port is **not published** to the host — only nginx on `:8080` is reachable.
 - `npm ci` from a committed lockfile; the dependency tree is audited (**0 vulnerabilities** at the time of writing).
 
-For the production deployment (Phase 4): secrets come from AWS Systems Manager Parameter Store via the task/instance role — never baked into images.
+Live deployment hardening:
+
+- **JWT verification instead of trust**: the API validates the Cognito ID token's
+  RS256 signature against the pool's JWKS using `node:crypto` (no SDK), then
+  checks `iss`, `aud`/`client_id`, `exp` and `token_use`. A forged, expired,
+  wrong-pool or non-ID token is a `401`
+- **Session expiry is enforced client- and server-side**: the guard treats an
+  expired token as signed out, and the API would reject it anyway
+- **No SSH on the EC2 host**: port 22 is not opened at all; the security group
+  allows 8080 only from the AWS-managed CloudFront origin-facing prefix list,
+  and administration happens through SSM Session Manager / Run Command
+- **IMDSv2 required**, one-hop response limit, and an encrypted `gp3` root volume
+- **No long-lived AWS credentials**: GitHub Actions assumes a role via OIDC that
+  is scoped to this repository, this bucket, this distribution and this instance
+- **Runtime secrets stay on the host**: the deployed stack's Cognito ids, CORS
+  origin and database passwords are written into a root-only `.env` by the
+  CloudFormation user data script — never in Git, never in an image, and the
+  passwords are `NoEcho` parameters in the stack
+- **CloudFront enforces HTTPS** for viewers, and the S3 bucket is private with a
+  bucket policy that only permits that distribution (OAC)
 
 ---
 
@@ -355,6 +522,13 @@ For the production deployment (Phase 4): secrets come from AWS Systems Manager P
 - [x] Backend port is not reachable from the host. *(verified: connection refused)*
 - [x] Database credentials remain untracked (Git **and** image builds).
 - [x] A clean rebuild + reseed works via `make bootstrap`. *(verified: full teardown → smoke passed)*
+- [x] All 12 catalogue entries open a real game. *(engines tested in CI + browser spot-checks)*
+- [x] Game engines survive hundreds of frames and reach their terminal states. *(21 frontend tests)*
+- [x] Every seeded game maps to an engine (no dead catalogue entries). *(mapping contract test)*
+- [x] Cognito tokens are verified server-side; bad/expired/wrong-pool tokens get 401. *(12 auth tests)*
+- [x] Sign-in gate stays open (with a loud boot warning) when no pool is configured. *(auth test)*
+- [x] Live site deployed to S3 + CloudFront, API reachable through CloudFront `/api/*`. *(verified live)*
+- [x] Deployment is keyless: GitHub Actions assumes a role via OIDC. *(deploy workflow)*
 
 ---
 
@@ -381,6 +555,11 @@ For the production deployment (Phase 4): secrets come from AWS Systems Manager P
 - Canvas-based UI animation and game development (6 engines, game-loop design)
 - Testing graphics code without a browser (stubbed canvas, frame-driven tests)
 - Canvas-based UI animation with accessibility (reduced-motion) support
+- Identity and access: Cognito user pools, ID tokens, JWKS-based JWT verification
+- Keyless CI/CD: GitHub Actions OIDC federation and least-privilege deploy roles
+- Infrastructure as code: four CloudFormation stacks with cross-stack outputs
+- Static hosting and CDN design: private S3 + CloudFront OAC, cache-behaviour split
+- Host hardening: SSM-only administration, IMDSv2, prefix-list-restricted ingress
 - Git and GitHub workflows
 - Application troubleshooting
 
@@ -394,8 +573,8 @@ For the production deployment (Phase 4): secrets come from AWS Systems Manager P
 | **1** | Automated tests + GitHub Actions CI (lint, coverage gate, Trivy, gitleaks) | ✅ 2026-10-18 |
 | **2** | Game-y UI: live animated background, self-hosted game fonts, arcade styling | ✅ 2026-10-18 |
 | **3** | Real playable games — every catalogue entry opens a game | ✅ 2026-10-19 |
-| **4** | Auth & live: Cognito (sign-in gate), S3 + CloudFront, EC2 backend, CloudFormation + OIDC CD | ⏭️ next |
-| **5** | Observability: metrics, dashboards, alerts, runbooks, SLOs | Planned |
+| **4** | Auth & live: Cognito (sign-in gate), S3 + CloudFront, EC2 backend, CloudFormation + OIDC CD | ✅ 2026-10-19 |
+| **5** | Observability: metrics, dashboards, alerts, runbooks, SLOs | ⏭️ next |
 | **6** | Local Kubernetes (kind) + Argo CD GitOps | Planned |
 | **7** | Security & GDPR hardening (deletion flow, SBOM) | Planned |
 | **8** | /learn documentation site + PDF export + load-test report | Planned |

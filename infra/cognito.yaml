@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  GameHub - Cognito user pool for player sign-in (Phase 4).
+  Free tier: 10,000 monthly active users.
+
+Parameters:
+  Stage:
+    Type: String
+    Default: prod
+    AllowedPattern: "[a-z0-9-]+"
+    Description: Deployment stage name (used in resource names).
+
+Resources:
+
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub gamehub-players-${Stage}
+      # Email-only sign-in: users type their address, not a username.
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      MfaConfiguration: "OFF"
+      # New pools default to mandatory MFA; the web flow here is
+      # username+password only, so opt out explicitly.
+      UserPoolAddOns:
+        AdvancedSecurityMode: "OFF"
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      UserPoolTags:
+        Project: GameHub
+        Stage: !Ref Stage
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub gamehub-web-${Stage}
+      UserPoolId: !Ref UserPool
+      # Public SPA client: no secret can be kept in a static site.
+      GenerateSecret: false
+      # USER_PASSWORD_AUTH powers the raw-REST sign-in in auth.js.
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      # Do not reveal whether an account exists.
+      PreventUserExistenceErrors: ENABLED
+      RefreshTokenValidity: 30
+
+Outputs:
+  UserPoolId:
+    Description: Cognito user pool id (backend COGNITO_USER_POOL_ID).
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub gamehub-${Stage}-UserPoolId
+
+  UserPoolClientId:
+    Description: App client id (frontend + backend COGNITO_CLIENT_ID).
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub gamehub-${Stage}-UserPoolClientId
+
+  Issuer:
+    Description: JWT issuer URL (iss claim).
+    Value: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}

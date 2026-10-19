@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>GameHub | Sign in</title>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <!-- Navigation -->
+  <header class="navbar">
+
+    <a href="index.html" class="logo">
+      GAME<span>HUB</span>
+    </a>
+
+    <nav class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="games.html">Games</a>
+      <a href="index.html#tournaments">Tournaments</a>
+      <a href="index.html#leaderboard">Leaderboard</a>
+    </nav>
+
+    <a class="nav-button" href="signup.html">Create account</a>
+
+  </header>
+
+
+  <main class="auth-main">
+
+    <section class="auth-panel">
+
+      <p class="eyebrow">PLAYER ACCESS</p>
+      <h1>SIGN IN</h1>
+      <p class="auth-sub">
+        Sign in to enter the GameHub arena.
+      </p>
+
+      <!-- Shown only when the deployment has no Cognito pool -->
+      <div class="auth-notice" id="auth-notice" hidden>
+        <p>
+          Authentication is not configured in this deployment — the app
+          runs in local open mode.
+        </p>
+        <a class="secondary-button" href="games.html">ENTER ANYWAY</a>
+      </div>
+
+      <form class="auth-form" id="signin-form" novalidate>
+
+        <label class="auth-field">
+          <span>EMAIL</span>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            autocomplete="email"
+            required
+            placeholder="player@example.com" />
+        </label>
+
+        <label class="auth-field">
+          <span>PASSWORD</span>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            autocomplete="current-password"
+            required
+            minlength="8"
+            placeholder="••••••••" />
+        </label>
+
+        <p class="auth-error" id="auth-error" hidden></p>
+
+        <button class="primary-button" type="submit" id="submit-button">
+          SIGN IN
+        </button>
+
+      </form>
+
+      <p class="auth-alt">
+        New player? <a href="signup.html">Create an account</a>
+      </p>
+
+    </section>
+
+  </main>
+
+  <script src="config.js"></script>
+  <script src="auth.js"></script>
+  <script src="bg.js" defer></script>
+  <script>
+    "use strict";
+
+    const auth = window.GameHubAuth;
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get("next") || "games.html";
+    const form = document.getElementById("signin-form");
+    const errorBox = document.getElementById("auth-error");
+    const submitButton = document.getElementById("submit-button");
+
+    if (!auth.configured()) {
+      document.getElementById("auth-notice").hidden = false;
+      form.hidden = true;
+    }
+
+    function showError(message) {
+      errorBox.textContent = message;
+      errorBox.hidden = false;
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      errorBox.hidden = true;
+      submitButton.disabled = true;
+      submitButton.textContent = "SIGNING IN…";
+
+      try {
+        await auth.signIn(
+          document.getElementById("email").value.trim(),
+          document.getElementById("password").value
+        );
+        window.location.replace(next);
+      } catch (error) {
+        showError(error.message || "Sign-in failed");
+        submitButton.disabled = false;
+        submitButton.textContent = "SIGN IN";
+      }
+    });
+  </script>
+</body>
+
+</html>

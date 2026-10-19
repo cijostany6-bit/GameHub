@@ -1,0 +1,140 @@
+name: Deploy
+
+# Publishes the site and rolls out the API host. Credentials come from
+# GitHub's OIDC token (short-lived) — there are no AWS keys in the repo.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "frontend/**"
+      - "backend/**"
+      - "db/**"
+      - "scripts/build-frontend.sh"
+      - "scripts/deploy-frontend.sh"
+      - "docker-compose.yml"
+      - "Dockerfile"
+      - ".github/workflows/deploy.yml"
+
+permissions:
+  contents: read
+  id-token: write # required for the OIDC exchange
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  SITE_BUCKET: ${{ vars.SITE_BUCKET }}
+  DISTRIBUTION_ID: ${{ vars.DISTRIBUTION_ID }}
+  INSTANCE_ID: ${{ vars.INSTANCE_ID }}
+  COGNITO_REGION: ${{ vars.AWS_REGION }}
+  COGNITO_USER_POOL_ID: ${{ vars.COGNITO_USER_POOL_ID }}
+  COGNITO_CLIENT_ID: ${{ vars.COGNITO_CLIENT_ID }}
+
+jobs:
+
+  # ---------------------------------------------------------------
+  # Static site → S3, cache invalidated
+  # ---------------------------------------------------------------
+  frontend:
+    name: Publish site (S3 + CloudFront)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Build deployable frontend
+        run: ./scripts/build-frontend.sh
+
+      - name: Sync assets (long cache)
+        run: |
+          aws s3 sync build/frontend/ "s3://$SITE_BUCKET/" \
+            --delete \
+            --exclude "*.html" \
+            --exclude ".DS_Store" \
+            --cache-control "public, max-age=604800"
+
+      - name: Sync HTML (short cache)
+        run: |
+          aws s3 sync build/frontend/ "s3://$SITE_BUCKET/" \
+            --exclude "*" \
+            --include "*.html" \
+            --cache-control "public, max-age=60, must-revalidate"
+
+      - name: Invalidate CloudFront
+        run: |
+          ID=$(aws cloudfront create-invalidation \
+            --distribution-id "$DISTRIBUTION_ID" \
+            --paths "/*" \
+            --query "Invalidation.Id" --output text)
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "$DISTRIBUTION_ID" --id "$ID"
+
+  # ---------------------------------------------------------------
+  # API host → git pull + compose up, over SSM (no SSH, no keys)
+  # ---------------------------------------------------------------
+  backend:
+    name: Deploy API host (SSM)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Roll out the compose stack
+        run: |
+          cat > params.json <<'JSON'
+          {
+            "commands": [
+              "set -e",
+              "cd /opt/gamehub",
+              "git fetch --all",
+              "git checkout main",
+              "git pull --ff-only",
+              "docker compose up -d --build",
+              "docker compose ps"
+            ]
+          }
+          JSON
+
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "GameHub deploy ${GITHUB_SHA}" \
+            --parameters file://params.json \
+            --query "Command.CommandId" --output text)
+
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" || true
+
+          STATUS=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" \
+            --query "Status" --output text)
+
+          echo "--- deploy output ---"
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" \
+            --query "StandardOutputContent" --output text
+
+          if [ "$STATUS" != "Success" ]; then
+            echo "Deploy failed (status: $STATUS)"
+            aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" \
+              --query "StandardErrorContent" --output text
+            exit 1
+          fi

@@ -1,0 +1,236 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  GameHub - EC2 host running the full Docker Compose stack (nginx +
+  Express API + MySQL) with the same compose file as local development.
+  Origin access is restricted to CloudFront (AWS-managed prefix list)
+  and administration happens over SSM - no SSH port, no key pair.
+
+
+Parameters:
+
+  Stage:
+    Type: String
+    Default: prod
+    AllowedPattern: "[a-z0-9-]+"
+
+  RepoUrl:
+    Type: String
+    Default: https://github.com/cijostany6-bit/GameHub.git
+
+  RepoBranch:
+    Type: String
+    Default: main
+
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    Description: >
+      t3.micro / t2.micro are the free-tier-friendly sizes for this
+      stack. User data creates a 2 GB swap file so the MySQL container
+      has headroom on a 1 GB instance.
+
+  CognitoRegion:
+    Type: String
+    Default: eu-central-1
+
+  CognitoUserPoolId:
+    Type: String
+    Description: From the cognito stack output.
+
+  CognitoClientId:
+    Type: String
+    Description: From the cognito stack output.
+
+  SiteOrigin:
+    Type: String
+    Description: >
+      Public https origin of the frontend (the CloudFront distribution
+      domain, e.g. https://d1234.cloudfront.net) - becomes the API
+      CORS allow-list entry.
+
+  CloudFrontPrefixListId:
+    Type: AWS::EC2::PrefixList::Id
+    Default: pl-a3a144ca
+    Description: >
+      AWS-managed "com.amazonaws.global.cloudfront.origin-facing"
+      prefix list for the target region. Find yours with:
+      aws ec2 describe-managed-prefix-lists --filters
+      Name=owner-id,Values=AWS
+      Name=prefix-list-name,Values=com.amazonaws.global.cloudfront.origin-facing
+
+  DbPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 16
+    Description: Password for the application database user.
+
+  RootDbPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 16
+    Description: Password for the MySQL root user inside the container.
+
+
+Resources:
+
+  # ---------------------------------------------------------------
+  # Administration without SSH: SSM Session Manager / Run Command.
+  # ---------------------------------------------------------------
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub gamehub-${Stage}-ec2-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Tags:
+        - Key: Project
+          Value: GameHub
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub gamehub-${Stage}-ec2-profile
+      Roles:
+        - !Ref InstanceRole
+
+  # ---------------------------------------------------------------
+  # Only CloudFront may reach the app port. No ingress on 22 at all.
+  # No VpcId: CloudFormation places this in the account's default VPC.
+  # ---------------------------------------------------------------
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub GameHub ${Stage} - CloudFront origin only
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourcePrefixListId: !Ref CloudFrontPrefixListId
+      Tags:
+        - Key: Project
+          Value: GameHub
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}"
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      SecurityGroupIds:
+        - !Ref AppSecurityGroup
+      # IMDSv2 only, as AWS recommends.
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpTokens: required
+        HttpPutResponseHopLimit: 1
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 20
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: !Sub gamehub-${Stage}
+        - Key: Project
+          Value: GameHub
+      UserData:
+        Fn::Base64: !Sub
+          - |
+            #!/bin/bash
+            set -euxo pipefail
+
+            # --- swap: MySQL wants headroom on a 1 GB instance ------
+            if [ ! -f /swapfile ]; then
+              fallocate -l 2G /swapfile
+              chmod 600 /swapfile
+              mkswap /swapfile
+              swapon /swapfile
+              echo '/swapfile none swap sw 0 0' >> /etc/fstab
+            fi
+
+            # --- runtime -------------------------------------------
+            dnf install -y docker git
+            systemctl enable --now docker
+            usermod -aG docker ec2-user
+
+            COMPOSE_VERSION="v2.40.3"
+            mkdir -p /usr/libexec/docker/cli-plugins
+            curl -fsSL \
+              "https://github.com/docker/compose/releases/download/${!COMPOSE_VERSION}/docker-compose-linux-x86_64" \
+              -o /usr/libexec/docker/cli-plugins/docker-compose
+            chmod +x /usr/libexec/docker/cli-plugins/docker-compose
+
+            # --- application checkout ------------------------------
+            if [ ! -d /opt/gamehub/.git ]; then
+              git clone --branch "${RepoBranch}" "${RepoUrl}" /opt/gamehub
+            fi
+            cd /opt/gamehub
+            git fetch --all
+            git checkout "${RepoBranch}"
+            git pull --ff-only
+
+            # --- runtime configuration (never committed) -----------
+            cat > /opt/gamehub/.env <<'ENVEOF'
+            CORS_ORIGIN=${SiteOrigin}
+            COGNITO_REGION=${CognitoRegion}
+            COGNITO_USER_POOL_ID=${CognitoUserPoolId}
+            COGNITO_CLIENT_ID=${CognitoClientId}
+            DB_PASSWORD=${DbPassword}
+            MYSQL_ROOT_PASSWORD=${RootDbPassword}
+            ENVEOF
+
+            # --- the same stack as local development ---------------
+            cd /opt/gamehub
+            docker compose up -d --build
+            docker compose ps
+          - RepoUrl: !Ref RepoUrl
+            RepoBranch: !Ref RepoBranch
+            SiteOrigin: !Ref SiteOrigin
+            CognitoRegion: !Ref CognitoRegion
+            CognitoUserPoolId: !Ref CognitoUserPoolId
+            CognitoClientId: !Ref CognitoClientId
+            DbPassword: !Ref DbPassword
+            RootDbPassword: !Ref RootDbPassword
+
+  ElasticIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  ElasticIpAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      InstanceId: !Ref Instance
+      EIP: !Ref ElasticIp
+
+
+Outputs:
+  InstanceId:
+    Description: EC2 instance id (used by the deploy workflow).
+    Value: !Ref Instance
+    Export:
+      Name: !Sub gamehub-${Stage}-InstanceId
+
+  OriginDomain:
+    Description: >
+      Hostname CloudFront should use as the /api/* origin. EC2 public
+      DNS always resolves to the attached elastic IP, and CloudFront
+      requires a domain name (not a bare IP) for a custom origin.
+    Value: !GetAtt Instance.PublicDnsName
+
+  PublicIp:
+    Value: !Ref ElasticIp
+
+  ShellAccess:
+    Description: Shell access without SSH.
+    Value: !Sub aws ssm start-session --target ${Instance}

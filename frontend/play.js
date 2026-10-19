@@ -13,6 +13,10 @@
    ========================================================= */
 
 (function () {
+    // Sign-in gate: enforced only when a Cognito pool is configured.
+    if (window.GameHubAuth) {
+        window.GameHubAuth.requireAuthGuard();
+    }
     // Title -> engine + player-facing controls. Every one of the
     // 12 catalogue entries is playable; nothing is a placeholder.
     const ENGINE_MAP = {
@@ -213,7 +217,9 @@
 
         let data;
         try {
-            const response = await fetch(`/api/games/${rawId}`);
+            const response = await (window.apiFetch || fetch)(
+                `/api/games/${rawId}`
+            );
             if (response.status === 404) {
                 showError("This game does not exist (yet).");
                 return;
