@@ -1019,3 +1019,228 @@ body::after {
     display: none;
   }
 }
+
+
+/* =========================================================
+   PLAY PAGE — game runner (Phase 3)
+   ========================================================= */
+
+.play-main {
+  width: min(720px, 92%);
+  margin: 40px auto 90px;
+}
+
+.play-error {
+  text-align: center;
+  padding: 70px 0;
+}
+
+.play-error h1 {
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  margin: 14px 0;
+}
+
+.play-error p {
+  color: var(--muted);
+  margin-bottom: 30px;
+}
+
+.play-error .primary-button {
+  display: inline-block;
+}
+
+.back-link {
+  display: inline-block;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.58rem;
+  color: var(--cyan);
+  letter-spacing: 1px;
+  margin-bottom: 28px;
+  transition: transform 0.2s ease;
+}
+
+.back-link:hover {
+  transform: translateX(-4px);
+}
+
+.play-heading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.cat-badge {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.5rem;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+}
+
+.cat-action {
+  color: var(--cyan);
+  border-color: var(--cyan);
+}
+
+.cat-racing {
+  color: #ffd166;
+  border-color: #ffd166;
+}
+
+.cat-strategy {
+  color: #36ff8a;
+  border-color: #36ff8a;
+}
+
+.play-heading h1 {
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  font-size: clamp(2.2rem, 6vw, 4rem);
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+.play-description {
+  color: var(--muted);
+  max-width: 58ch;
+  line-height: 1.6;
+}
+
+/* --- stage ------------------------------------------------------ */
+
+.play-stage {
+  position: relative;
+  margin-top: 34px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 0 40px rgba(0, 245, 255, 0.12);
+}
+
+#game-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--panel);
+  cursor: crosshair;
+}
+
+.stage-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-align: center;
+  padding: 24px;
+  background: rgba(7, 8, 18, 0.88);
+  backdrop-filter: blur(3px);
+}
+
+.stage-overlay[hidden] {
+  display: none;
+}
+
+.overlay-title {
+  font-family: "Press Start 2P", monospace;
+  font-size: clamp(0.9rem, 3vw, 1.4rem);
+  color: var(--cyan);
+  text-shadow: 0 0 18px rgba(0, 245, 255, 0.6);
+}
+
+.overlay-sub {
+  color: var(--muted);
+  max-width: 46ch;
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+
+.overlay-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+/* --- HUD -------------------------------------------------------- */
+
+.hud-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr;
+  gap: 1px;
+  margin-top: 14px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.hud-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 14px 18px;
+  background: var(--panel);
+}
+
+.hud-label {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.48rem;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+
+.hud-value {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.hud-best {
+  color: var(--pink);
+}
+
+.hud-cell-wide .hud-value {
+  color: var(--cyan);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- controls panel --------------------------------------------- */
+
+.controls-panel {
+  margin-top: 14px;
+  padding: 20px 22px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.controls-title {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.52rem;
+  color: var(--cyan);
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+}
+
+.controls-hint {
+  color: var(--text);
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+
+.engine-credit {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 1px;
+}

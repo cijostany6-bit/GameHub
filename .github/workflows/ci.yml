@@ -70,6 +70,9 @@ jobs:
         working-directory: backend
         run: npm run test:coverage
 
+      - name: Frontend game-engine tests (21 tests, stubbed canvas)
+        run: node --test "frontend/test/*.test.js"
+
   stack-smoke:
     name: Full-stack smoke test (Docker Compose)
     runs-on: ubuntu-latest

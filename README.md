@@ -4,16 +4,16 @@
 
 [![CI](https://github.com/cijostany6-bit/GameHub/actions/workflows/ci.yml/badge.svg)](https://github.com/cijostany6-bit/GameHub/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Tests](https://img.shields.io/badge/tests-14%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-40%20passing-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-%E2%89%A580%25%20gated-blue)
 
 GameHub is a portfolio project that combines a futuristic gaming interface with a containerized Node.js backend and a MySQL database — all runnable locally with one command. It demonstrates how frontend applications, backend APIs, container networking, reverse proxies, databases, tests and CI pipelines work together.
 
 The project is being evolved into a production-style application: automated CI/CD, infrastructure as code on AWS, monitoring, and Kubernetes (local kind cluster + Argo CD).
 
-> **Status — Phase 2 complete (2026-10-18):** tested, CI'd, and **game-y**.
-> Arcade UI with a live animated background, GDPR-clean self-hosted fonts,
-> 14 tests with an 80% coverage gate, and a 3-job CI pipeline on every push.
+> **Status — Phase 3 complete (2026-10-19):** tested, CI'd, game-y, and
+> **actually playable**. All 12 catalogue entries open real games (6 engines),
+> 40 automated tests, live arcade background, GDPR-clean fonts.
 
 ---
 
@@ -67,6 +67,22 @@ The project is being evolved into a production-style application: automated CI/C
 - **Accessibility**: `prefers-reduced-motion` visitors get a fully static page
   (canvas is never even created)
 - Arcade styling on all interactive elements (PS2P buttons with press feel)
+
+### ✅ Completed (Phase 3 — real playable games)
+
+- **All 12 catalogue games are actually playable** — `play.html?id=<n>` fetches
+  the title and runs one of **6 dependency-free canvas engines**: snake,
+  breakout, survival-racing (dodge), memory, reflex targeting, pong
+- Runner state machine: READY → PLAYING → GAME OVER with **Play again**, HUD
+  (score / best / status), per-title **high scores in localStorage** (guarded),
+  controls help, Escape → catalogue
+- **`GET /api/games/:id`** endpoint: honest 404s for unknown *and* non-numeric
+  ids; malformed/oversized JSON now 400/413 instead of 500
+- **Frontend tests (21)**: the six engines execute in Node against a stubbed
+  canvas — frame-driven, asserting real terminal paths; plus a **coverage
+  contract test** that fails CI if any seeded title lacks an engine
+- An engine test found and fixed a real stall bug (dead-centre breakout hit →
+  vertical ball → unwinnable game)
 
 ### 🚧 Planned
 
@@ -362,6 +378,8 @@ For the production deployment (Phase 4): secrets come from AWS Systems Manager P
 - CI/CD pipelines (GitHub Actions): lint → test → build → security scan
 - Dependency and image security scanning (Trivy, npm audit, gitleaks)
 - GDPR-conscious frontend: self-hosted assets, zero third-party requests
+- Canvas-based UI animation and game development (6 engines, game-loop design)
+- Testing graphics code without a browser (stubbed canvas, frame-driven tests)
 - Canvas-based UI animation with accessibility (reduced-motion) support
 - Git and GitHub workflows
 - Application troubleshooting
@@ -375,8 +393,8 @@ For the production deployment (Phase 4): secrets come from AWS Systems Manager P
 | **0** | Reproducible local foundation (compose, seed, healthchecks, `make bootstrap`, smoke tests) | ✅ 2026-10-18 |
 | **1** | Automated tests + GitHub Actions CI (lint, coverage gate, Trivy, gitleaks) | ✅ 2026-10-18 |
 | **2** | Game-y UI: live animated background, self-hosted game fonts, arcade styling | ✅ 2026-10-18 |
-| **3** | Real playable games — every catalogue entry opens a game | ⏭️ next |
-| **4** | Auth & live: Cognito (sign-in gate), S3 + CloudFront, EC2 backend, CloudFormation + OIDC CD | Planned |
+| **3** | Real playable games — every catalogue entry opens a game | ✅ 2026-10-19 |
+| **4** | Auth & live: Cognito (sign-in gate), S3 + CloudFront, EC2 backend, CloudFormation + OIDC CD | ⏭️ next |
 | **5** | Observability: metrics, dashboards, alerts, runbooks, SLOs | Planned |
 | **6** | Local Kubernetes (kind) + Argo CD GitOps | Planned |
 | **7** | Security & GDPR hardening (deletion flow, SBOM) | Planned |
