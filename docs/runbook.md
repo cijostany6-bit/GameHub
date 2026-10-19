@@ -170,7 +170,7 @@ aws ssm send-command --region "$AWS_REGION" --instance-ids "$INSTANCE_ID" \
 
 | Cause | Action |
 |---|---|
-| Memory | the swap file in the user-data is the buffer, not the fix: reduce `innodb_buffer_pool_size` in `db/my.cnf` or move the database off the box |
+| Memory | the swap file in the user-data is the buffer, not the fix: add a MySQL config file (mounted at `/etc/mysql/conf.d/`) with a smaller `innodb_buffer_pool_size`, or move the database off the box. The image's default is the right size for a real server and too greedy for a 1 GB host |
 | Disk from Docker | `docker system prune -af --volumes` removes old layers (it will NOT touch the named volumes — verify with `docker volume ls` first) |
 | Disk from logs | the agent ships logs with 7-day retention in CloudWatch; the local copies are rotated by Docker's `json-file` driver, so a runaway log is a code smell |
 
