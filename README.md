@@ -4,17 +4,20 @@
 
 [![CI](https://github.com/cijostany6-bit/GameHub/actions/workflows/ci.yml/badge.svg)](https://github.com/cijostany6-bit/GameHub/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Tests](https://img.shields.io/badge/tests-64%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-84%20passing-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-%E2%89%A580%25%20gated-blue)
 
 GameHub is a portfolio project that combines a futuristic gaming interface with a containerized Node.js backend and a MySQL database — all runnable locally with one command. It demonstrates how frontend applications, backend APIs, container networking, reverse proxies, databases, tests and CI pipelines work together.
 
 The project is being evolved into a production-style application: automated CI/CD, infrastructure as code on AWS, monitoring, and Kubernetes (local kind cluster + Argo CD).
 
-> **Status — Phase 4 complete (2026-10-19):** tested, CI'd, game-y, playable,
-> and **live on AWS**. 64 automated tests, a Cognito sign-in gate, the static
-> site on S3 + CloudFront, the API on EC2, all described as CloudFormation and
-> deployed by keyless GitHub OIDC.
+> **Status — Phase 7 complete (2026-10-19):** tested, CI'd, game-y, playable,
+> **live on AWS**, observable, runnable on Kubernetes — and now hardened. 84
+> automated tests, a Cognito sign-in gate with **working account deletion**
+> (GDPR art. 17, in the app rather than in a policy document), a bilingual
+> privacy notice, an SBOM + image scanning in CI, and deploys that only run on a
+> green CI for the exact commit. All described as CloudFormation and deployed by
+> keyless GitHub OIDC.
 
 **Live demo:** <https://d2qf9zxehny6bk.cloudfront.net> — create an account
 (email confirmation), sign in, and play. The landing page is public; the
@@ -24,7 +27,8 @@ catalogue and the games require a signed-in player.
 
 ## 📌 Project Status
 
-**Current phase:** Phase 0 — reproducible local foundation ✅
+**Current phase:** Phase 7 — security hardening & GDPR ✅ (see
+[`docs/step-7-security-gdpr.md`](docs/step-7-security-gdpr.md))
 
 **Status:** Full stack runs locally end-to-end: `make bootstrap` → seeded database, healthy containers, passing smoke tests. No cloud resources required.
 
@@ -38,7 +42,7 @@ catalogue and the games require a signed-in player.
 - Node.js and Express backend
 - **Local MySQL 8.4 container** with schema + seed (`db/init.sql`) — reproducible on any machine, no cloud account needed
 - **Connection pool** (not a connection-per-request), **liveness/readiness split** (`/api/health` vs `/api/ready`), structured JSON logs, CORS locked to explicit origins, generic client-facing errors
-- Dockerized frontend and backend with **pinned base images**, `npm ci` from lockfile, **0 npm vulnerabilities**, backend running as **non-root**
+- Dockerized frontend and backend on the **Alpine stable channel** (Dependabot-tracked, security-patched at build time), `npm ci` from lockfile, **0 npm vulnerabilities**, backend running as **non-root**
 - Docker Compose orchestration with **healthchecks + ordered startup**
 - Nginx reverse proxy (gzip, security headers) — backend port **not published** to the host
 - `make bootstrap` one-command workflow + **smoke test** (`scripts/smoke.sh`)
@@ -185,9 +189,41 @@ catalogue and the games require a signed-in player.
 - **CI covers it**: a `manifests` job validates every manifest against the
   Kubernetes schema (kubeconform) and checks the generated ConfigMap for drift
 
+### ✅ Completed (Phase 7 — security hardening & GDPR)
+
+- **Erasure that is implemented, not promised**: `DELETE /api/me` deletes the
+  player's rows **and** their Cognito identity in one action from the
+  [account page](frontend/profile.html). A partial result is reported as a
+  partial result (`502`), never as success
+- **The account page is the GDPR surface**: it *is* the access/portability
+  answer (identity + every stored row, copyable as JSON) and it carries the
+  deletion control — one page, three of the four rights, no support email
+- **A bilingual privacy notice** ([`frontend/privacy.html`](frontend/privacy.html)):
+  a data inventory with purpose, legal basis and retention per item — including
+  the 7-day access logs, which are personal data too
+- **One AWS call, signed by hand**: account deletion needs
+  `cognito-idp:AdminDeleteUser`, so the backend fetches IMDSv2 credentials and
+  signs the request itself (SigV4, `node:crypto`) — no AWS SDK, no long-lived
+  keys, and the signature is asserted field by field in the test suite
+- **Least privilege on the identity**: the instance role's inline policy allows
+  that *one* action on *one* user-pool ARN, not `CognitoPowerUser` on `*`
+- **Data minimisation in the schema**: one `personal_bests` row per
+  `(player, game)` with `GREATEST()` on conflict — the best score, no play
+  history — keyed by the Cognito `sub`, so the database holds no email address
+- **Migrations with a ledger** (`scripts/migrate.sh`, `db/migrations/`):
+  `db/init.sql` only runs on an empty volume, so schema changes ship as
+  checksummed, idempotent migrations; a rewritten migration is refused
+- **Supply chain in CI**: SPDX SBOM (syft) kept as an artifact, Trivy against
+  the **built image** as well as the filesystem, `npm audit`, gitleaks over the
+  full history, and Dependabot for npm, Actions and base images
+- **Deploys are CI-gated**: the deploy workflow runs on a *successful CI run for
+  the exact commit* (never a later, untested tip of `main`) and finishes with a
+  post-deploy smoke test against the public URL — homepage markup, all 12
+  catalogue entries, game details, and a `401` from an unauthenticated
+  `/api/me`
+
 ### 🚧 Planned
 
-- **Phase 7 — security & GDPR hardening** (data deletion flow, SBOM)
 - **Phase 8 — /learn documentation site, PDF export, load-test report**
 
 ---
@@ -296,10 +332,13 @@ GameHub/
 │   ├── play.html           ← game runner host (READY → PLAYING → GAME OVER)
 │   ├── signin.html         ← Cognito sign-in
 │   ├── signup.html         ← Cognito sign-up + email confirmation step
+│   ├── profile.html        ← account page: stored data, JSON export, deletion
+│   ├── privacy.html        ← bilingual (EN/DE) privacy notice
 │   ├── script.js           ← homepage + catalogue logic
 │   ├── play.js             ← runner: ENGINE_MAP, HUD, high scores
 │   ├── engines.js          ← 6 dependency-free canvas game engines
 │   ├── auth.js             ← Cognito REST client, session, page guard
+│   ├── account.js          ← account page: fetch scores, export, delete
 │   ├── config.js           ← runtime config (local dev: auth off)
 │   ├── bg.js               ← animated arcade background
 │   ├── style.css
@@ -312,13 +351,15 @@ GameHub/
 │   ├── .env.example        ← copy to .env only for non-Docker runs
 │   ├── db.js               ← connection pool
 │   ├── auth.js             ← Cognito JWKS verification (no SDK)
+│   ├── cognito.js          ← IMDSv2 credentials + SigV4 AdminDeleteUser
 │   ├── app.js              ← Express app (exported for tests)
 │   ├── server.js           ← HTTP entrypoint
-│   ├── test/               ← unit, integration and auth suites
+│   ├── test/               ← unit, integration, auth, GDPR and signer suites
 │   ├── package.json
 │   └── package-lock.json
 ├── db/
-│   └── init.sql            ← schema + seed (runs on first boot)
+│   ├── init.sql            ← schema + seed (runs on first boot)
+│   └── migrations/         ← checksummed migrations applied to live schemas
 ├── infra/
 │   ├── cognito.yaml        ← user pool + app client
 │   ├── site.yaml           ← S3 + CloudFront (+ /api/* origin)
@@ -342,12 +383,15 @@ GameHub/
 │   ├── kind-up.sh          ← cluster + images + manifests + smoke test
 │   ├── argocd-up.sh        ← install Argo CD, sync the app, wait for Healthy
 │   ├── build-k8s-dbinit.sh ← renders the DB seed ConfigMap (--check in CI)
+│   ├── migrate.sh          ← applies db/migrations (ledger + checksums)
 │   ├── build-learn.js      ← builds the /learn site from docs/
 │   └── build-pdf.sh        ← renders the guide to PDF
 ├── learn/                  ← generated documentation site + PDF
-├── .github/workflows/
-│   ├── ci.yml              ← lint, tests, coverage, compose smoke, manifests, scans
-│   └── deploy.yml          ← OIDC deploy (site + API host)
+├── .github/
+│   ├── dependabot.yml      ← weekly npm / Actions / base-image updates
+│   └── workflows/
+│       ├── ci.yml          ← lint, tests, coverage, compose smoke, manifests, scans
+│       └── deploy.yml      ← CI-gated OIDC deploy + post-deploy verification
 ├── docs/                   ← learning notes, SLOs, runbook, ADRs
 ├── Dockerfile              ← frontend image (nginx)
 ├── docker-compose.yml      ← frontend + backend + db
@@ -481,6 +525,14 @@ rest through OIDC, with no AWS keys stored anywhere:
 `AWS_REGION`, `AWS_DEPLOY_ROLE_ARN`, `SITE_BUCKET`, `DISTRIBUTION_ID`,
 `INSTANCE_ID`, `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID`.
 
+The workflow does not run on the push itself. It runs when [CI](.github/workflows/ci.yml)
+**succeeds on `main`** (`workflow_run` + `conclusion == 'success'`) and checks out
+the commit CI tested, so production never receives a commit that has not been
+judged. The rollout then pulls the revision on the host, rebuilds the containers,
+waits for MySQL and applies pending migrations (`./scripts/migrate.sh`) before a
+final job smoke-tests the public CloudFront URL — homepage, all 12 catalogue
+entries, game details and a `401` from an unauthenticated `/api/me`.
+
 **Cost note (honest):** the site (S3 + CloudFront), Cognito and the four
 CloudFormation stacks are inside the free tier at this traffic level. The EC2
 instance is the only line item: this account is on a free plan, so AWS *rejects*
@@ -502,6 +554,9 @@ The following endpoints are implemented in the current application.
 | GET | `/api/games` | Retrieve games from the database |
 | GET | `/api/games/:id` | Single game (powers the runner); 404 for unknown *and* non-numeric ids |
 | GET | `/api/me` | Echoes the verified Cognito identity — proof the token was checked |
+| POST | `/api/scores` | Stores the player's best score for a game (upsert, `GREATEST`) — `201` with the stored best |
+| GET | `/api/scores/me` | Every stored row for the caller: the access/portability answer |
+| DELETE | `/api/me` | **Erasure** — deletes the caller's scores *and* their Cognito identity; `204`, or `502` if only half of it worked |
 
 The API is reachable **only through the nginx proxy on `:8080`** — port `3000`
 is deliberately not published to the host (use `docker-compose exec backend …`
@@ -510,8 +565,9 @@ if you need direct access from inside the network).
 **Auth behaviour:** middleware on every `/api/*` route except the two probes. If
 the Cognito pool is configured (that is: in the deployment), requests without a
 valid ID token get `401 {"error":"Unauthorized"}`. If it is not configured (local
-development), requests pass through and the backend logs `auth_disabled` at boot
-— so the app is never broken, but the bypass is never silent either.
+development), the read-only routes keep working, the identity echo answers `401`,
+and the signed-in features answer **`501`** rather than pretending — the backend
+also logs `auth_disabled` at boot, so the bypass is never silent.
 
 ```bash
 curl http://localhost:8080/api/health
@@ -521,6 +577,14 @@ curl http://localhost:8080/api/games/4
 
 # with the pool configured, protected routes need the ID token:
 curl -H "Authorization: Bearer $ID_TOKEN" http://localhost:8080/api/me
+curl -H "Authorization: Bearer $ID_TOKEN" http://localhost:8080/api/scores/me
+curl -H "Authorization: Bearer $ID_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"game":"Cyber Strike","score":42}' \
+     http://localhost:8080/api/scores
+
+# erasure (irreversible — it deletes the Cognito user as well):
+curl -X DELETE -H "Authorization: Bearer $ID_TOKEN" http://localhost:8080/api/me
 ```
 
 Or run the full check suite: `make smoke`.
@@ -539,7 +603,7 @@ rather than a claim made here.
 
 Reset to a clean seeded state any time with `make db-reset`.
 
-The current games table contains these fields:
+The `games` table contains these fields:
 
 | Column | Purpose |
 |---|---|
@@ -549,6 +613,38 @@ The current games table contains these fields:
 | `description` | Short game description |
 
 Sample categories include Action, Racing, and Strategy.
+
+### Player data (`personal_bests`)
+
+| Column | Purpose |
+|---|---|
+| `user_sub` | The Cognito `sub` — **never** the email address |
+| `game` | Game name (validated against `games.name`, so no free-text rows) |
+| `score` | The best score only (`GREATEST()` on conflict) |
+| `updated_at` | When that best was last improved |
+
+The primary key is `(user_sub, game)`: one row per player per game, which is the
+whole data-minimisation argument. Players are identified to the database by a
+pseudonymous Cognito `sub`; no email, no name, no IP is stored next to a score.
+
+### Migrations
+
+`db/init.sql` runs **once**, on an empty data volume — which is correct for a
+fresh clone and wrong for a live database. Schema changes therefore ship as
+migrations:
+
+```bash
+./scripts/migrate.sh            # apply everything pending
+./scripts/migrate.sh --status   # what is applied, what is pending
+```
+
+Each file in [`db/migrations/`](db/migrations/) is recorded in a
+`schema_migrations` ledger with a **checksum**. A migration that was applied and
+then edited is refused, because the database that ran it is no longer described
+by the file. The runner reaches MySQL through `docker compose exec` on a host and
+through the `mysql` client in CI (`MIGRATE_VIA`), so the same script runs in both
+places. It is also part of the deploy: the rollout brings the schema up to date
+after the containers start.
 
 The frontend retrieves game records dynamically through the Express API rather than relying entirely on hardcoded game cards.
 
@@ -628,6 +724,53 @@ Live deployment hardening:
   passwords are `NoEcho` parameters in the stack
 - **CloudFront enforces HTTPS** for viewers, and the S3 bucket is private with a
   bucket policy that only permits that distribution (OAC)
+- **One AWS permission, one ARN**: the instance role's inline policy allows
+  `cognito-idp:AdminDeleteUser` on the GameHub user pool and nothing else — no
+  `CognitoPowerUser`, no `*` resource
+- **No third-party requests from the browser**: fonts are self-hosted (OFL), so
+  loading a page discloses no visitor IP to Google or to an analytics/CDN
+  provider. This is a German data-protection requirement in practice, not a
+  performance preference
+
+### Data protection (GDPR)
+
+- **Data minimisation by schema**: one `(user_sub, game)` row per player holding
+  the best score — no play history, no email in the score table, no IP next to a
+  score
+- **Storage limitation**: access logs are retained for 7 days and then deleted
+  automatically; the retention is set on the log groups in
+  `infra/observability.yaml` and the reason is written down in the notice
+- **Erasure (Art. 17)**: `DELETE /api/me` removes the database rows and the
+  Cognito identity. The order matters — rows first — because if the identity were
+  deleted first, a failure would leave data nobody (including the user) could
+  ever delete. A Cognito failure returns `502` with a truthful message
+- **Access & portability (Art. 15, 20)**: the account page lists the identity and
+  every stored row, with a one-click JSON export
+- **Transparency (Art. 13)**: [`frontend/privacy.html`](frontend/privacy.html)
+  is a bilingual inventory — item, purpose, legal basis, retention, processors
+  (AWS, `eu-central-1`) and rights
+- **Not stored on purpose**: passwords (Cognito holds a salted hash we never
+  see), advertising identifiers, behavioural profiles, third-party analytics
+
+### Supply chain & pipeline
+
+- **SBOM per build**: an SPDX JSON inventory (syft) is generated in CI and kept
+  as a build artifact
+- **Two vulnerability scans, two questions**: Trivy over the filesystem (source
+  and dependencies) *and* over the **built image** (what the base image adds),
+  plus `npm audit` — all failing the job on `CRITICAL`/`HIGH`
+- **Secret scanning over history**, not just the diff: gitleaks runs against the
+  full git history, because a secret that was committed and removed is still
+  leaked
+- **Dependabot** for npm, GitHub Actions and base images: updates arrive as
+  reviewable pull requests that must pass the same CI, with no auto-merge
+- **The deploy is gated on CI, not on the push**: `.github/workflows/deploy.yml`
+  triggers on a *successful CI run* for a specific commit and checks out **that**
+  commit, so a merge cannot reach production before the tests have judged it
+- **Post-deploy verification against the public URL**: the pipeline finishes by
+  checking the homepage, all 12 catalogue entries through the API, game details
+  by id, and that an unauthenticated `/api/me` returns `401` — the edge, not just
+  the host
 
 ---
 
@@ -661,6 +804,17 @@ Live deployment hardening:
 - [x] Manifests are valid and the generated DB seed matches `db/init.sql`. *(kubeconform + drift check in CI)*
 - [x] Argo CD reports the Application `Synced`/`Healthy` and reverts manual drift. *(verified on kind)*
 - [x] Rolling updates never drop below the declared replica count. *(`maxUnavailable: 0`)*
+- [x] A player's scores are stored server-side, one row per game, best only. *(gdpr test: upsert semantics)*
+- [x] A player can retrieve every row stored about them. *(gdpr test: `/api/scores/me`)*
+- [x] One player's query returns nobody else's rows. *(gdpr test: row isolation)*
+- [x] Account deletion removes the DB rows **and** the Cognito identity. *(gdpr test: SigV4 `AdminDeleteUser` asserted)*
+- [x] A Cognito failure still erases the data and reports a partial result (`502`). *(gdpr test)*
+- [x] The identity cannot be deleted by a request that has no pool configured. *(open-mode test: `501`)*
+- [x] Signatures are real: session tokens are signed, and a changed body changes the signature. *(10 signer tests)*
+- [x] Migrations apply once, are idempotent, and are refused if rewritten. *(CI runs the runner twice)*
+- [x] The built image is scanned, not just the source tree. *(Trivy image scan in CI)*
+- [x] A dependency inventory (SBOM) is produced on every build. *(syft, SPDX JSON artifact)*
+- [x] Production only receives a commit that CI passed, and the deploy is smoke-tested at the edge. *(deploy workflow `workflow_run` + `verify`)*
 
 ---
 
@@ -678,7 +832,7 @@ Live deployment hardening:
 - Healthcheck-driven container startup (ordered dependency waits)
 - Liveness vs readiness probe design
 - Connection pooling
-- Non-root container images, pinned base images, audited lockfiles
+- Non-root container images with **no package manager in the runtime**, base images on the stable channel with build-time security patches, audited lockfiles
 - One-command bootstrap + smoke testing
 - Automated testing (unit + integration) with coverage gates
 - CI/CD pipelines (GitHub Actions): lint → test → build → security scan
@@ -700,6 +854,14 @@ Live deployment hardening:
 - GitOps with Argo CD: automated sync, prune, selfHeal, drift as a bug to be reverted
 - Local cluster engineering: kind, side-loaded images, NodePort mapping, PVC scope
 - Host hardening: SSM-only administration, IMDSv2, prefix-list-restricted ingress
+- Data protection as code: GDPR art. 15/17/20 implemented as endpoints, not policy text
+- Erasure across two systems with a defined failure mode (partial deletion reported as partial)
+- AWS request signing by hand (SigV4) and instance-metadata credentials (IMDSv2), no SDK
+- IAM least privilege: one action, scoped to one resource ARN
+- Data minimisation in schema design (one row per player per game, pseudonymous key)
+- Database migrations with a checksum ledger; idempotency verified in CI
+- Supply chain: SBOM generation, image-level vulnerability scanning, Dependabot, secret scanning over history
+- CI-gated deployment: production receives only the commit CI passed, then a post-deploy smoke test at the edge
 - Git and GitHub workflows
 - Application troubleshooting
 
@@ -716,7 +878,7 @@ Live deployment hardening:
 | **4** | Auth & live: Cognito (sign-in gate), S3 + CloudFront, EC2 backend, CloudFormation + OIDC CD | ✅ 2026-10-19 |
 | **5** | Observability: structured logs, metrics from logs, synthetic check, 8 alarms, dashboard, SLOs, runbook | ✅ 2026-10-19 |
 | **6** | Local Kubernetes (kind) + Argo CD GitOps | ✅ 2026-10-19 |
-| **7** | Security & GDPR hardening (deletion flow, SBOM) | Planned |
+| **7** | Security & GDPR hardening: account deletion (art. 17) across DB + Cognito, SigV4 without an SDK, migrations with a checksum ledger, SBOM + image scanning, CI-gated deploys | ✅ 2026-10-19 |
 | **8** | /learn documentation site + PDF export + load-test report | Planned |
 
 ---

@@ -1362,3 +1362,104 @@ body::after {
   color: var(--cyan);
   border-bottom: 1px dashed var(--cyan);
 }
+
+/* =========================================================
+   Account + privacy pages (Phase 7)
+   ---------------------------------------------------------
+   These pages carry the GDPR surface of the app, so they are
+   built from plain tables and text: readable, printable, and
+   honest about being the notice rather than a marketing page.
+   ========================================================= */
+
+.auth-panel--wide {
+  max-width: 900px;
+  width: 100%;
+}
+
+.privacy-h2 {
+  margin: 30px 0 12px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.78rem;
+  letter-spacing: 1px;
+  color: var(--cyan);
+}
+
+.privacy-h2.privacy-danger {
+  color: var(--pink);
+}
+
+.privacy-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.privacy-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.privacy-table th,
+.privacy-table td {
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+}
+
+.privacy-table thead th {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.6rem;
+  letter-spacing: 1px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.privacy-table tbody tr:last-child th,
+.privacy-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.privacy-table code {
+  color: var(--cyan);
+  word-break: break-all;
+}
+
+.privacy-list {
+  margin: 10px 0 10px 18px;
+  line-height: 1.7;
+}
+
+.privacy-list li {
+  margin-bottom: 8px;
+}
+
+.privacy-note {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--purple);
+  background: rgba(155, 92, 255, 0.08);
+  border-radius: 0 8px 8px 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.privacy-rule {
+  margin: 40px 0 10px;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+/* Deleting your own account is the one destructive action in the
+   app: it looks different from every other button on purpose. */
+.danger-button {
+  background: linear-gradient(90deg, #ff3cac, #b3123f);
+  border-color: #ff3cac;
+  color: #fff;
+}
+
+.danger-button:hover {
+  filter: brightness(1.12);
+}

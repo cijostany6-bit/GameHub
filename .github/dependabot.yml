@@ -1,0 +1,53 @@
+# =========================================================
+# Dependabot — keep the supply chain current, in reviewable
+# pieces. A dependency update arrives as a pull request, runs
+# the full CI (lint, tests with a coverage gate, the Compose
+# smoke test, Kubernetes manifest validation, gitleaks, Trivy
+# and npm audit) and is merged like any other change. No
+# auto-merge: an update that nobody read is an update nobody
+# can roll back with confidence.
+# =========================================================
+version: 2
+
+updates:
+  # The API's dependencies. The lockfile is the artifact that
+  # matters — Dependabot updates package.json and package-lock
+  # together, and `npm ci` in CI proves they agree.
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    groups:
+      backend-minor-and-patch:
+        applies-to: "version-updates"
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "dependencies"
+
+  # Actions are code too. A pinned `uses: owner/action@v4` still
+  # moves as the tag does, so the versions are tracked and
+  # reviewed rather than believed.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    labels:
+      - "dependencies"
+      - "ci"
+
+  # Base images: nginx (frontend), node (backend), mysql (db).
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    labels:
+      - "dependencies"

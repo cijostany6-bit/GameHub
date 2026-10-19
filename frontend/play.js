@@ -171,6 +171,33 @@
         elements.overlay.hidden = true;
     }
 
+    // The API keeps one row per (player, game): the personal best.
+    // Best-effort by design — the localStorage value above already covers
+    // guests and offline play, so a failed call must never break the game
+    // or interrupt the overlay. When it succeeds, the overlay says what the
+    // server remembers, which is what survives clearing site data.
+    function syncScoreToServer(game, score, subElement) {
+        const auth = window.GameHubAuth;
+        if (!auth || typeof auth.apiFetch !== "function") return;
+        if (!auth.configured || !auth.configured()) return;
+        if (typeof auth.isAuthenticated === "function" && !auth.isAuthenticated()) return;
+
+        auth.apiFetch("/api/scores", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ game, score })
+        })
+            .then((response) => (response.ok ? response.json() : null))
+            .then((data) => {
+                if (data && typeof data.best === "number") {
+                    subElement.textContent += ` — SAVED (BEST ${data.best})`;
+                }
+            })
+            .catch(() => {
+                /* offline or gateway down: the local best is still shown */
+            });
+    }
+
     function startEngine(gameData, mapping) {
         if (activeGame) {
             activeGame.destroy();
@@ -198,6 +225,7 @@
                     "PLAY AGAIN",
                     () => startEngine(gameData, mapping)
                 );
+                syncScoreToServer(gameData.name, finalScore, elements.overlaySub);
             }
         });
     }

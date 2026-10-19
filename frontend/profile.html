@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>GameHub | Your account</title>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <header class="navbar">
+    <a href="index.html" class="logo">GAME<span>HUB</span></a>
+
+    <nav class="nav-links">
+      <a href="games.html">Games</a>
+      <a href="privacy.html">Privacy</a>
+    </nav>
+
+    <button class="nav-button" id="account-nav-button">SIGN OUT</button>
+  </header>
+
+
+  <main class="auth-main">
+    <section class="auth-panel auth-panel--wide">
+
+      <p class="eyebrow">PLAYER RECORD</p>
+      <h1>YOUR ACCOUNT</h1>
+      <p class="auth-sub">
+        Everything GameHub stores about you, and the one button that removes
+        all of it. No request form, no waiting period.
+      </p>
+
+      <div class="auth-notice" id="auth-notice" hidden>
+        <p>
+          Authentication is not configured in this deployment, so there is
+          no account to show. Scores are kept in your browser only.
+        </p>
+        <a class="secondary-button" href="games.html">ENTER ANYWAY</a>
+      </div>
+
+      <!-- Sign-in state is decided by auth.js; this is only hidden while
+           the guard checks the session. -->
+      <div id="account-content" hidden>
+
+        <h2 class="privacy-h2">Identity</h2>
+        <table class="privacy-table">
+          <tbody>
+            <tr>
+              <th>Signed in as</th>
+              <td id="account-email">—</td>
+            </tr>
+            <tr>
+              <th>Player identifier</th>
+              <td><code id="account-sub">—</code></td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="privacy-note">
+          The identifier is the only thing the score table knows about you:
+          the API stores no email address next to a score.
+        </p>
+
+        <h2 class="privacy-h2">Personal bests</h2>
+        <div class="privacy-table-wrap">
+          <table class="privacy-table">
+            <thead>
+              <tr>
+                <th>Game</th>
+                <th>Best score</th>
+                <th>Updated</th>
+              </tr>
+            </thead>
+            <tbody id="scores-body">
+              <tr>
+                <td colspan="3" id="scores-status">Loading…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 class="privacy-h2">Export</h2>
+        <p>
+          The table above is the complete export: email, identifier and
+          scores in a form you can copy. There is nothing else.
+          <button class="secondary-button" id="copy-data-button" type="button">
+            COPY AS JSON
+          </button>
+        </p>
+
+        <h2 class="privacy-h2 privacy-danger">Delete this account</h2>
+        <p>
+          This deletes your sign-in identity (the email address in Cognito)
+          and every personal best, immediately and irreversibly. It is the
+          Art. 17 GDPR erasure, implemented rather than promised — see the
+          <a href="privacy.html">privacy notice</a>.
+        </p>
+
+        <form class="auth-form" id="delete-form" novalidate>
+          <label class="auth-field">
+            <span>TYPE DELETE TO CONFIRM</span>
+            <input
+              type="text"
+              id="delete-confirm"
+              name="delete-confirm"
+              autocomplete="off"
+              placeholder="DELETE" />
+          </label>
+
+          <button class="primary-button danger-button" id="delete-button" type="submit">
+            DELETE MY ACCOUNT
+          </button>
+
+          <p class="auth-error" id="delete-error" hidden></p>
+        </form>
+
+        <p class="auth-alt" id="delete-done" hidden>
+          Account deleted. Nothing about you remains in GameHub's database
+          or in Cognito.
+        </p>
+
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>© 2026 GameHub. Built for the next generation of gamers.</p>
+    <p><a href="index.html">HOME</a> · <a href="privacy.html">PRIVACY</a></p>
+  </footer>
+
+  <!-- account.js runs after auth.js: it needs the session and apiFetch -->
+  <script src="config.js"></script>
+  <script src="auth.js"></script>
+  <script src="account.js"></script>
+  <script src="bg.js" defer></script>
+</body>
+
+</html>

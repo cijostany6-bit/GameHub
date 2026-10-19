@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>GameHub | Privacy & data protection</title>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <header class="navbar">
+    <a href="index.html" class="logo">GAME<span>HUB</span></a>
+
+    <nav class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="games.html">Games</a>
+      <a href="index.html#tournaments">Tournaments</a>
+      <a href="index.html#leaderboard">Leaderboard</a>
+    </nav>
+
+    <a class="nav-button" href="signin.html">Sign in</a>
+  </header>
+
+
+  <main class="auth-main">
+    <section class="auth-panel auth-panel--wide">
+
+      <p class="eyebrow">DATA PROTECTION / DATENSCHUTZ</p>
+      <h1>PRIVACY</h1>
+      <p class="auth-sub">
+        What GameHub stores, why, for how long — and how to have it deleted.
+        This page is the notice; the code that implements it is in the
+        repository.
+      </p>
+
+      <!-- ================= ENGLISH ================= -->
+      <h2 class="privacy-h2">1. Who is responsible (controller)</h2>
+      <p>
+        GameHub is a portfolio project operated by the repository owner.
+        For any question about this notice, or to exercise a right in
+        Article 15–22 GDPR, use the contact address given in the
+        repository's <code>README.md</code>. There is no tracking,
+        no profiling and no marketing here, so no data protection
+        officer is required.
+      </p>
+
+      <h2 class="privacy-h2">2. What is stored, and why</h2>
+      <div class="privacy-table-wrap">
+        <table class="privacy-table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Where</th>
+              <th>Purpose (legal basis)</th>
+              <th>Retention</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Email address</td>
+              <td>Cognito user pool</td>
+              <td>
+                Sign-in — you must be able to authenticate as yourself
+                (Art. 6(1)(b) GDPR, performance of the service)
+              </td>
+              <td>Until you delete your account</td>
+            </tr>
+            <tr>
+              <td>Cognito identifier (<code>sub</code>)</td>
+              <td>Cognito + database</td>
+              <td>
+                Links a score to an account without using your email
+                address (Art. 6(1)(b))
+              </td>
+              <td>Until you delete your account</td>
+            </tr>
+            <tr>
+              <td>Personal best per game</td>
+              <td>GameHub database</td>
+              <td>
+                The feature itself: your high score is remembered
+                (Art. 6(1)(b))
+              </td>
+              <td>Until you delete your account</td>
+            </tr>
+            <tr>
+              <td>Request logs (IP, URL, status, timing)</td>
+              <td>CloudWatch Logs</td>
+              <td>
+                Security and availability — detecting abuse and running
+                the alarms that keep the service up (Art. 6(1)(f),
+                legitimate interest)
+              </td>
+              <td>7 days, then deleted automatically</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="privacy-note">
+        <strong>Deliberately not stored:</strong> no passwords in the
+        database (Cognito holds a salted hash, we never see it), no
+        advertising identifiers, no behavioural profiles, no third-party
+        analytics, no cookies other than the sign-in session your browser
+        keeps in <code>localStorage</code>. Deleting that storage value
+        signs you out.
+      </p>
+
+      <h2 class="privacy-h2">3. Who else sees the data (processors)</h2>
+      <p>
+        The service runs on Amazon Web Services (AWS), which processes the
+        data on our behalf under the AWS Data Processing Addendum; the
+        region is <code>eu-central-1</code> (Frankfurt), inside the EU.
+        The web fonts in this project are self-hosted, so no font, CDN or
+        analytics provider ever receives a request from your browser.
+      </p>
+
+      <h2 class="privacy-h2">4. Your rights</h2>
+      <ul class="privacy-list">
+        <li>
+          <strong>Access / data portability (Art. 15, 20):</strong> your
+          complete stored data is on the
+          <a href="profile.html">account page</a> — email, identifier and
+          every personal best, in a form you can copy out.
+        </li>
+        <li>
+          <strong>Erasure (Art. 17):</strong> the same page deletes your
+          account. This removes the Cognito identity (the email) and every
+          score in one action, immediately, without an email to support.
+        </li>
+        <li>
+          <strong>Rectification (Art. 16):</strong> change your email by
+          creating a new account and deleting the old one.
+        </li>
+        <li>
+          <strong>Objection (Art. 21):</strong> the only processing based
+          on legitimate interest is request logging, which is deleted
+          within 7 days and cannot be switched off per user without
+          switching off security monitoring for everyone.
+        </li>
+        <li>
+          <strong>Complaint (Art. 77):</strong> you may complain to your
+          local supervisory authority — in Germany, the
+          Landesbeauftragte für Datenschutz of your federal state.
+        </li>
+      </ul>
+
+      <h2 class="privacy-h2">5. Security measures</h2>
+      <p>
+        Data travels over HTTPS only. Sign-in tokens are verified
+        server-side against the Cognito signing keys; the database is not
+        reachable from the internet; administration happens over AWS
+        Systems Manager with no SSH port open; the EC2 host has no AWS
+        access keys on disk and uses short-lived instance credentials.
+        Third-party JavaScript is not loaded on these pages at all.
+      </p>
+
+      <!-- ================= DEUTSCH ================= -->
+      <hr class="privacy-rule" />
+
+      <h2 class="privacy-h2">1. Verantwortlicher</h2>
+      <p>
+        GameHub ist ein Portfolio-Projekt, betrieben vom Inhaber des
+        Repositories. Für Fragen zu dieser Erklärung oder zur Ausübung der
+        Rechte nach Art. 15–22 DSGVO nutzen Sie bitte die im
+        <code>README.md</code> angegebene Kontaktadresse. Es gibt kein
+        Tracking, kein Profiling und keine Werbung — ein
+        Datenschutzbeauftragter ist daher nicht erforderlich.
+      </p>
+
+      <h2 class="privacy-h2">2. Welche Daten gespeichert werden</h2>
+      <ul class="privacy-list">
+        <li>
+          <strong>E-Mail-Adresse</strong> im Cognito-Benutzerpool — für die
+          Anmeldung, Rechtsgrundlage Art. 6 Abs. 1 lit. b DSGVO.
+        </li>
+        <li>
+          <strong>Cognito-Kennung (<code>sub</code>)</strong> in Cognito und
+          in der Datenbank — verknüpft den Highscore mit dem Konto, ohne die
+          E-Mail-Adresse zu verwenden.
+        </li>
+        <li>
+          <strong>Persönlicher Bestwert je Spiel</strong> in der
+          GameHub-Datenbank — das ist die Funktion selbst. Es wird genau
+          eine Zeile je Spieler und Spiel gespeichert, kein Verlauf.
+        </li>
+        <li>
+          <strong>Zugriffsprotokolle</strong> (IP, URL, Status, Dauer) in
+          CloudWatch Logs für 7 Tage — Sicherheit und Verfügbarkeit,
+          Art. 6 Abs. 1 lit. f DSGVO.
+        </li>
+      </ul>
+      <p class="privacy-note">
+        <strong>Bewusst nicht gespeichert:</strong> keine Passwörter in der
+        Datenbank (Cognito speichert einen gesalzenen Hash, wir sehen ihn
+        nie), keine Werbe-IDs, keine Verhaltensprofile, kein
+        Drittanbieter-Analytics. Schriften werden selbst gehostet — beim
+        Laden dieser Seiten geht keine Anfrage an Google oder andere
+        Dienste.
+      </p>
+
+      <h2 class="privacy-h2">3. Auftragsverarbeiter und Ort der Verarbeitung</h2>
+      <p>
+        Der Dienst läuft auf Amazon Web Services (AWS) als
+        Auftragsverarbeiter nach dem AWS Data Processing Addendum. Die
+        Region ist <code>eu-central-1</code> (Frankfurt) innerhalb der EU.
+      </p>
+
+      <h2 class="privacy-h2">4. Ihre Rechte</h2>
+      <ul class="privacy-list">
+        <li>
+          <strong>Auskunft und Datenübertragbarkeit</strong> (Art. 15, 20):
+          Alle gespeicherten Daten stehen auf der
+          <a href="profile.html">Kontoseite</a>.
+        </li>
+        <li>
+          <strong>Löschung</strong> (Art. 17): Auf derselben Seite löschen
+          Sie Ihr Konto — Cognito-Identität und alle Bestwerte, sofort und
+          ohne E-Mail an den Support.
+        </li>
+        <li>
+          <strong>Widerspruch</strong> (Art. 21): Die einzige Verarbeitung
+          auf Basis berechtigten Interesses sind Zugriffsprotokolle; sie
+          werden nach 7 Tagen gelöscht.
+        </li>
+        <li>
+          <strong>Beschwerde</strong> (Art. 77): bei der
+          Datenschutz-Aufsichtsbehörde Ihres Bundeslandes.
+        </li>
+      </ul>
+
+      <p class="auth-alt">
+        <a href="profile.html">GO TO YOUR ACCOUNT / ZUM KONTO</a>
+      </p>
+
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>© 2026 GameHub. Built for the next generation of gamers.</p>
+    <p><a href="index.html">HOME</a> · <a href="profile.html">ACCOUNT</a></p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="auth.js"></script>
+  <script src="bg.js" defer></script>
+</body>
+
+</html>
