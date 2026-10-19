@@ -26,9 +26,11 @@ Parameters:
     Type: String
     Default: t3.micro
     Description: >
-      t3.micro / t2.micro are the free-tier-friendly sizes for this
-      stack. User data creates a 2 GB swap file so the MySQL container
-      has headroom on a 1 GB instance.
+      Must be a free-tier-eligible type on free-plan accounts
+      (aws ec2 describe-instance-types --filters
+      Name=free-tier-eligible,Values=true). t3.micro is the default;
+      user data creates a 2 GB swap file so the MySQL container has
+      headroom on a 1 GB instance.
 
   CognitoRegion:
     Type: String
@@ -50,11 +52,13 @@ Parameters:
       CORS allow-list entry.
 
   CloudFrontPrefixListId:
-    Type: AWS::EC2::PrefixList::Id
+    Type: String
+    AllowedPattern: "^pl-[0-9a-f]+$"
     Default: pl-a3a144ca
     Description: >
       AWS-managed "com.amazonaws.global.cloudfront.origin-facing"
-      prefix list for the target region. Find yours with:
+      prefix list for the target region (eu-central-1 default).
+      Find yours with:
       aws ec2 describe-managed-prefix-lists --filters
       Name=owner-id,Values=AWS
       Name=prefix-list-name,Values=com.amazonaws.global.cloudfront.origin-facing
@@ -164,11 +168,19 @@ Resources:
             usermod -aG docker ec2-user
 
             COMPOSE_VERSION="v2.40.3"
+            BUILDX_VERSION="v0.38.0"
             mkdir -p /usr/libexec/docker/cli-plugins
             curl -fsSL \
               "https://github.com/docker/compose/releases/download/${!COMPOSE_VERSION}/docker-compose-linux-x86_64" \
               -o /usr/libexec/docker/cli-plugins/docker-compose
-            chmod +x /usr/libexec/docker/cli-plugins/docker-compose
+            # `docker compose build` requires the buildx plugin, which the
+            # AL2023 docker package does not ship.
+            curl -fsSL \
+              "https://github.com/docker/buildx/releases/download/${!BUILDX_VERSION}/buildx-${!BUILDX_VERSION}.linux-amd64" \
+              -o /usr/libexec/docker/cli-plugins/docker-buildx
+            chmod +x \
+              /usr/libexec/docker/cli-plugins/docker-compose \
+              /usr/libexec/docker/cli-plugins/docker-buildx
 
             # --- application checkout ------------------------------
             if [ ! -d /opt/gamehub/.git ]; then

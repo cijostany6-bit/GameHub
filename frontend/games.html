@@ -213,6 +213,12 @@
   <script src="auth.js"></script>
   <script src="bg.js" defer></script>
   <script src="script.js"></script>
+  <script>
+    // The catalogue needs a signed-in player; the landing page does not.
+    if (window.GameHubAuth) {
+      window.GameHubAuth.requireAuthGuard();
+    }
+  </script>
 
 </body>
 
