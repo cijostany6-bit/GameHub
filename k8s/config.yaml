@@ -1,0 +1,40 @@
+# =========================================================
+# Configuration and local-only credentials.
+#
+# The values mirror docker-compose.yml exactly, so the app
+# behaves the same in Compose and in Kubernetes. The Secret
+# below is a *local cluster* secret: it is committed on
+# purpose so a fresh kind cluster comes up with one command.
+# Nothing here is used in the AWS deployment, which generates
+# its own passwords into a root-only .env on the host.
+# =========================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gamehub-config
+  namespace: gamehub
+data:
+  DB_HOST: gamehub-db
+  DB_PORT: "3306"
+  DB_NAME: gamehub
+  DB_USER: gamehub
+  DB_SSL: "false"
+  # The browser talks to the NodePort published on host 8081
+  # (k8s/kind-config.yaml), not to the Compose stack on 8080.
+  CORS_ORIGIN: http://localhost:8081
+  # Cognito sign-in gate. Empty here on purpose: a local cluster runs
+  # in open mode and the backend logs a loud auth_disabled warning at
+  # boot. The AWS deployment fills these from its own config.
+  COGNITO_REGION: ""
+  COGNITO_USER_POOL_ID: ""
+  COGNITO_CLIENT_ID: ""
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gamehub-secrets
+  namespace: gamehub
+type: Opaque
+stringData:
+  DB_PASSWORD: gamehub_local_pw
+  MYSQL_ROOT_PASSWORD: gamehub_root_local

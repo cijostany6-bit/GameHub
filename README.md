@@ -156,9 +156,37 @@ catalogue and the games require a signed-in player.
   from `list-metrics` and then written into the template — an alarm with the
   wrong dimension set sits in `INSUFFICIENT_DATA` forever
 
+### ✅ Completed (Phase 6 — local Kubernetes + Argo CD GitOps)
+
+- **Real cluster, no bill**: a single-node [kind](https://kind.sigs.k8s.io/)
+  cluster (`k8s/kind-config.yaml`) with the same images the Compose stack builds,
+  side-loaded into the node (`make kind-up`)
+- **Deployments and a StatefulSet**: frontend and backend run 2 replicas each
+  with `maxUnavailable: 0` rollouts; MySQL is a StatefulSet with a volume claim
+  template — a Deployment would give the database a random name and two pods
+  fighting over one data directory
+- **Probes with consequences**: liveness on `/api/health` (no database), readiness
+  on `/api/ready` (database) — a DB outage stops new traffic instead of
+  restarting every pod
+- **One source of truth for the seed**: `db/init.sql` is rendered into a
+  ConfigMap by `scripts/build-k8s-dbinit.sh`, and CI fails if the copy drifts
+  from the source
+- **Least privilege, measured rather than assumed**: the backend runs as the
+  unprivileged `node` user with `drop: ALL`; nginx keeps exactly the five
+  capabilities its root master process needs — the first attempt at `drop: ALL`
+  produced `CrashLoopBackOff` with `chown(...) failed (1: Operation not
+  permitted)`, which is why the list is now written down with a reason
+- **GitOps with Argo CD** (`k8s/argocd/application.yaml`): `automated` sync with
+  `prune` and `selfHeal`, so the merge to `main` *is* the deploy and a manual
+  `kubectl` edit is reverted by the controller
+- **Verified like the rest of the project**: the same `scripts/smoke.sh` runs
+  against the cluster's NodePort (8081, so Compose on 8080 keeps working) and
+  passes — 12 games served from the StatefulSet through the nginx proxy
+- **CI covers it**: a `manifests` job validates every manifest against the
+  Kubernetes schema (kubeconform) and checks the generated ConfigMap for drift
+
 ### 🚧 Planned
 
-- **Phase 6 — local Kubernetes (kind) + Argo CD GitOps**
 - **Phase 7 — security & GDPR hardening** (data deletion flow, SBOM)
 - **Phase 8 — /learn documentation site, PDF export, load-test report**
 
@@ -297,12 +325,28 @@ GameHub/
 │   ├── backend.yaml        ← EC2 host, security group, IAM, elastic IP
 │   ├── observability.yaml  ← log groups, metric filters, canary, alarms
 │   └── github-oidc.yaml    ← OIDC provider + scoped deploy role
+├── k8s/
+│   ├── kind-config.yaml     ← single-node kind cluster (node port → host 8081)
+│   ├── namespace.yaml
+│   ├── config.yaml          ← ConfigMap (app config) + local-only Secret
+│   ├── db.yaml              ← MySQL StatefulSet + headless Service + PVC
+│   ├── db-init-configmap.yaml ← GENERATED from db/init.sql (CI checks drift)
+│   ├── backend.yaml         ← Express Deployment + `backend` Service
+│   ├── frontend.yaml        ← nginx Deployment + NodePort Service
+│   └── argocd/
+│       └── application.yaml ← Argo CD Application (prune + selfHeal)
 ├── scripts/
 │   ├── smoke.sh            ← end-to-end checks
 │   ├── build-frontend.sh   ← builds the deployable static artifact
-│   └── deploy-frontend.sh  ← S3 sync + CloudFront invalidation
+│   ├── deploy-frontend.sh  ← S3 sync + CloudFront invalidation
+│   ├── kind-up.sh          ← cluster + images + manifests + smoke test
+│   ├── argocd-up.sh        ← install Argo CD, sync the app, wait for Healthy
+│   ├── build-k8s-dbinit.sh ← renders the DB seed ConfigMap (--check in CI)
+│   ├── build-learn.js      ← builds the /learn site from docs/
+│   └── build-pdf.sh        ← renders the guide to PDF
+├── learn/                  ← generated documentation site + PDF
 ├── .github/workflows/
-│   ├── ci.yml              ← lint, tests, coverage, compose smoke, scans
+│   ├── ci.yml              ← lint, tests, coverage, compose smoke, manifests, scans
 │   └── deploy.yml          ← OIDC deploy (site + API host)
 ├── docs/                   ← learning notes, SLOs, runbook, ADRs
 ├── Dockerfile              ← frontend image (nginx)
@@ -352,10 +396,26 @@ make test-frontend    # game-engine, mapping-contract and auth tests (Node only)
 make down             # stop, keep database data
 make db-reset         # wipe + re-seed the database
 make clean            # full teardown incl. images and DB volume
+make kind-up          # same app on a local Kubernetes cluster (kind) → :8081
+make argocd-up        # install Argo CD and sync the manifests from Git
+make k8s-dbinit       # re-render the Kubernetes DB seed ConfigMap
+make learn            # rebuild the /learn docs site and the PDF
 make help             # list all targets
 ```
 
 Prefer plain Compose? `docker-compose up -d --build` then `./scripts/smoke.sh` does the same.
+
+### 3. Or run it on Kubernetes
+
+```bash
+make kind-up     # kind cluster + images + manifests + the same smoke test
+make argocd-up   # Argo CD takes over from Git: Synced + Healthy
+```
+
+The cluster publishes the app on **http://localhost:8081** so it can run next to
+the Compose stack on 8080. `make kind-down` deletes the cluster; the Docker
+images stay. Everything about it — including what it does *not* promise — is in
+[`docs/step-6-kubernetes-gitops.md`](docs/step-6-kubernetes-gitops.md).
 
 ---
 
@@ -597,6 +657,10 @@ Live deployment hardening:
 - [x] Log-derived metrics produce data points. *(verified with `get-metric-statistics`)*
 - [x] The synthetic check runs on schedule and its result is a metric, not just a log line. *(verified live)*
 - [x] Every alarm has a real state and a notification target. *(verified with `describe-alarms`)*
+- [x] The app runs on Kubernetes from the same images. *(verified on kind; smoke test passed on :8081)*
+- [x] Manifests are valid and the generated DB seed matches `db/init.sql`. *(kubeconform + drift check in CI)*
+- [x] Argo CD reports the Application `Synced`/`Healthy` and reverts manual drift. *(verified on kind)*
+- [x] Rolling updates never drop below the declared replica count. *(`maxUnavailable: 0`)*
 
 ---
 
@@ -631,6 +695,10 @@ Live deployment hardening:
 - Synthetic (black-box) availability monitoring with alarm semantics that treat silence as failure
 - Alert design: 8 actionable alarms, SNS notification path, `TreatMissingData` chosen per signal
 - SLOs and error budgets written before the incident, with a per-alarm runbook
+- Kubernetes: Deployments vs StatefulSets, named ports, probes, resource requests/limits
+- Container security context: capability drop lists chosen from evidence, seccomp, non-root
+- GitOps with Argo CD: automated sync, prune, selfHeal, drift as a bug to be reverted
+- Local cluster engineering: kind, side-loaded images, NodePort mapping, PVC scope
 - Host hardening: SSM-only administration, IMDSv2, prefix-list-restricted ingress
 - Git and GitHub workflows
 - Application troubleshooting
@@ -647,7 +715,7 @@ Live deployment hardening:
 | **3** | Real playable games — every catalogue entry opens a game | ✅ 2026-10-19 |
 | **4** | Auth & live: Cognito (sign-in gate), S3 + CloudFront, EC2 backend, CloudFormation + OIDC CD | ✅ 2026-10-19 |
 | **5** | Observability: structured logs, metrics from logs, synthetic check, 8 alarms, dashboard, SLOs, runbook | ✅ 2026-10-19 |
-| **6** | Local Kubernetes (kind) + Argo CD GitOps | Planned |
+| **6** | Local Kubernetes (kind) + Argo CD GitOps | ✅ 2026-10-19 |
 | **7** | Security & GDPR hardening (deletion flow, SBOM) | Planned |
 | **8** | /learn documentation site + PDF export + load-test report | Planned |
 

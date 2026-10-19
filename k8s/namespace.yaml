@@ -1,0 +1,12 @@
+# =========================================================
+# GameHub on Kubernetes — the namespace everything lives in.
+# =========================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gamehub
+  labels:
+    app.kubernetes.io/part-of: gamehub
+    # The app manifests are managed by Argo CD, but not by the
+    # app-of-apps: this namespace is created by CreateNamespace
+    # or by scripts/kind-up.sh.

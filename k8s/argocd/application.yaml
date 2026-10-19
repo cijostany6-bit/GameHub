@@ -1,0 +1,50 @@
+# =========================================================
+# Argo CD Application — the GitOps half of Phase 6.
+#
+# Argo CD watches this repository and reconciles everything
+# under k8s/ into the cluster. The pipeline therefore has no
+# kubectl step for the app: the merge to main *is* the deploy,
+# and a drift caused by `kubectl edit` is reverted by the
+# controller (selfHeal).
+#
+# kind-config.yaml is excluded because it is a kind cluster
+# definition, not a Kubernetes manifest, and argocd/ is
+# excluded so the Application does not try to manage itself.
+# =========================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gamehub
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  labels:
+    app.kubernetes.io/part-of: gamehub
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/cijostany6-bit/GameHub.git
+    targetRevision: main
+    path: k8s
+    directory:
+      recurse: true
+      exclude: "{kind-config.yaml,argocd/*}"
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gamehub
+
+  syncPolicy:
+    automated:
+      prune: true # a resource removed from Git is removed from the cluster
+      selfHeal: true # manual edits are reverted, which is the point
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
