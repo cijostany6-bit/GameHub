@@ -117,6 +117,10 @@ catalogue and the games require a signed-in player.
 - **Landing page stays public** while the catalogue and the runner require a
   signed-in player — found by actually signing out live and following the
   redirect, not by reading the code
+- **Versioned asset URLs** (`script.js?v=<deploy sha>`): assets are cached for a
+  week, so a CloudFront invalidation alone still leaves returning browsers on
+  the previous script. HTML (one-minute cache) points at the new version —
+  found by watching a stale `script.js` run in the browser after a deploy
 
 ### 🚧 Planned
 

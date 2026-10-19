@@ -40,6 +40,12 @@ runs on AWS as code — no console clicking, no SSH, no stored access keys.
 6. **The artifact carries its config, the repo does not.** `config.js` ships
    with `authEnabled:false` for local development; `scripts/build-frontend.sh`
    writes the real pool ids into a git-ignored `build/` directory at deploy time.
+7. **An edge invalidation is not a browser invalidation.** After a deploy the
+   browser still ran the previous `script.js` from its week-long cache, which
+   made a fixed landing page look broken. The build now stamps every asset URL
+   with the deploy version (`script.js?v=<sha>`) while HTML stays on a
+   one-minute cache — the standard two-tier answer to "how do users get the new
+   version without a hard refresh?"
 
 ## Concepts to understand cold
 

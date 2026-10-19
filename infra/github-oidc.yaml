@@ -65,6 +65,11 @@ Resources:
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
+          # Two accepted shapes, both locked to this repository:
+          #  1. the classic subject  repo:owner/repo:ref:...
+          #  2. GitHub's immutable-ID subject
+          #     repo:owner@<id>/repo@<id>:ref:...
+          # Either statement alone grants; nothing else does.
           - Effect: Allow
             Principal:
               Federated: !If
@@ -76,9 +81,20 @@ Resources:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
               StringLike:
-                # Only this repository. Tighten to ref:refs/heads/main
-                # if pull-request deploys are never wanted.
                 token.actions.githubusercontent.com:sub: !Sub repo:${GitHubRepo}:*
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - CreateProvider
+                - !Ref GitHubOidcProvider
+                - !Ref ExistingOidcProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:repository: !Ref GitHubRepo
+              StringLike:
+                token.actions.githubusercontent.com:sub: "repo:*"
       Policies:
         - PolicyName: deploy
           PolicyDocument:
@@ -106,10 +122,17 @@ Resources:
                 Effect: Allow
                 Action:
                   - ssm:SendCommand
-                  - ssm:GetCommandInvocation
                 Resource:
                   - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${InstanceId}
                   - !Sub arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript
+              # Reading the result is an account-level action on the
+              # command resource, not on the instance.
+              - Sid: ReadCommandResult
+                Effect: Allow
+                Action:
+                  - ssm:GetCommandInvocation
+                  - ssm:ListCommandInvocations
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:*
       Tags:
         - Key: Project
           Value: GameHub
