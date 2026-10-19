@@ -41,4 +41,18 @@ window.GAMEHUB_CONFIG = {
 };
 EOF
 
-echo "Built $BUILD"
+# Cache-busting: assets are served with a week-long cache, so a returning
+# browser would keep running the previous script.js/style.css even after a
+# CloudFront invalidation. HTML (cached for a minute) therefore references
+# every asset with the deploy version.
+if [ -n "${GITHUB_SHA:-}" ]; then
+    VERSION="${GITHUB_SHA:0:7}"
+else
+    VERSION="${VERSION:-$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo dev)}"
+fi
+
+find "$BUILD" -name "*.html" -print0 | xargs -0 sed -i.bak -E \
+    "s/(src|href)=\"([^\"]+\.(js|css))\"/\1=\"\2?v=${VERSION}\"/g"
+find "$BUILD" -name "*.bak" -delete
+
+echo "Built $BUILD (asset version: $VERSION)"
