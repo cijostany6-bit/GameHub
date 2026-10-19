@@ -11,6 +11,9 @@ export AWS_REGION=eu-central-1
 export INSTANCE_ID=$(aws ec2 describe-instances --region "$AWS_REGION" \
   --filters Name=tag:Name,Values=gamehub-prod* \
   --query "Reservations[].Instances[].InstanceId" --output text)
+# The site's canonical name. The distribution's own domain name also still
+# answers, with CloudFront's default certificate — see ADR-018.
+export SITE_URL=https://gamehub.worldofvpc.online
 ```
 
 Run a command on the host (no keys, no SSH — IAM decides who may do this):
@@ -42,8 +45,8 @@ the site".
 **Confirm:**
 
 ```bash
-curl -sS -o /dev/null -w '%{http_code} %{time_total}s\n' https://<distribution>/ 
-curl -sS -o /dev/null -w '%{http_code} %{time_total}s\n' https://<distribution>/api/health
+curl -sS -o /dev/null -w '%{http_code} %{time_total}s\n' $SITE_URL/ 
+curl -sS -o /dev/null -w '%{http_code} %{time_total}s\n' $SITE_URL/api/health
 aws lambda invoke --region "$AWS_REGION" \
   --function-name gamehub-prod-canary --log-type Tail /dev/stdout | tail -5
 ```

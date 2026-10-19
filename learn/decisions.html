@@ -34,7 +34,7 @@
     </nav>
     <div class="sidebar-foot">
       <a class="btn btn-primary" href="gamehub-guide.pdf">Download the PDF</a>
-      <a class="btn btn-ghost" href="https://d2qf9zxehny6bk.cloudfront.net">Live demo</a>
+      <a class="btn btn-ghost" href="https://gamehub.worldofvpc.online">Live demo</a>
       <a class="btn btn-ghost" href="https://github.com/cijostany6-bit/GameHub">GitHub repo</a>
     </div>
   </aside>
@@ -167,6 +167,13 @@
 <p><strong>Decision.</strong> A CloudFront Function on the viewer request of the static cache behaviour appends <code>index.html</code> to a URI that ends in <code>/</code>, and treats an extensionless final segment as a directory so <code>/learn</code> works too. It returns <code>/api/*</code> unchanged, so the function is correct independently of which cache behaviour it is attached to. Its ten-to-twelve URI cases are exercised locally before it is published.</p>
 <p><strong>Consequences.</strong> <code>/learn/</code>, <code>/learn</code> and every deep link work; the bucket stays dumb; the cost is nil at this size (the CloudFront Functions free tier is two million requests a month against a few thousand here). The trade is one more piece of logic between the user and the object, so it fails open — an unmatched URI behaves exactly as it did before — and it is small enough to read in one sitting.</p>
 <p><strong>Rejected.</strong> Uploading the landing page <em>also</em> as the key <code>learn/</code> (S3 permits it, but <code>aws s3 sync --delete</code> does not know it is meant to exist, so it would be deleted and restored on every deploy — a one-second outage per release in exchange for saving twelve lines); linking to <code>/learn/index.html</code> everywhere (works, and the docs' own links do use explicit <code>.html</code>, but <code>/learn/</code> is the URL a person types or bookmarks, and a landing page that renders the wrong site is a bug however it was linked).</p>
+<hr />
+<h2 id="adr-018">ADR-018</h2>
+<p><strong>The site answers on a custom domain — and the CloudFront name keeps working</strong></p>
+<p><strong>Context.</strong> The site was reachable only at <code>d2qf9zxehny6bk.cloudfront.net</code>. The zone <code>worldofvpc.online</code> already existed with another project on the apex, so <code>gamehub.worldofvpc.online</code> was the obvious subdomain. The expected cost was breaking the CloudFront name: the distribution redirects HTTP to HTTPS, so if a custom certificate replaced the default one, the old address would fail at the TLS handshake and any link to it would simply break.</p>
+<p><strong>Decision.</strong> Serve <code>gamehub.worldofvpc.online</code>: an ACM certificate issued in us-east-1 by a small dedicated stack (<code>infra/dns.yaml</code>) and validated over DNS, an alias on the distribution, and IPv4/IPv6 alias records pointing at it. Prefer the custom name wherever a URL is written down — README, docs, the load-test commands and the deploy's smoke test — and treat the CloudFront name as an implementation detail.</p>
+<p><strong>Consequences.</strong> The expectation was wrong in a pleasant way, and it was measured rather than assumed: CloudFront chooses the certificate by SNI, so the alias gets the certificate for <code>gamehub.worldofvpc.online</code> while the distribution's own name keeps getting <code>*.cloudfront.net</code>. <strong>Both names answer 200</strong>, so no existing link breaks and the historical verification records stay exactly as they were written. The real cost is a third stack (in us-east-1, because CloudFront only accepts certificates from there), a hosted-zone id in the site stack, and the standing obligation to rename <em>everywhere at once</em> — a half-renamed project is worse than an unnamed one. Certificates are free; alias records are not charged for.</p>
+<p><strong>Rejected.</strong> A second distribution for the custom name (a duplicate of the whole configuration — cache behaviours, the directory-index function, the origin access control — to avoid one alias); email-validated certificates (a human has to click a link, and the failure mode is an expired certificate in production); and rewriting the historical records that name the CloudFront domain, which would have falsified evidence that was accurate when it was captured.</p>
     </article>
     <footer class="page-footer">
       <p>GameHub /learn — generated from <code>README.md</code> and <code>docs/*.md</code> by

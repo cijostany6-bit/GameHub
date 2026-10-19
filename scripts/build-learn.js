@@ -30,7 +30,7 @@ const PROJECT = {
   title: "GameHub",
   tagline: "A Futuristic Gaming Platform Built with AWS & DevOps",
   repo: "https://github.com/cijostany6-bit/GameHub",
-  live: "https://d2qf9zxehny6bk.cloudfront.net",
+  live: "https://gamehub.worldofvpc.online",
   pdf: "gamehub-guide.pdf",
 };
 

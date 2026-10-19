@@ -241,7 +241,7 @@ body {
         A build log across every phase of the project — what was built, why that choice<br />
         beat the alternative, the bugs found, and the concepts worth understanding cold.<br /><br />
         Generated from <code>README.md</code> and <code>docs/*.md</code> by <code>scripts/build-learn.js</code>.<br />
-        Live: <code>https://d2qf9zxehny6bk.cloudfront.net</code>
+        Live: <code>https://gamehub.worldofvpc.online</code>
       </p>
     </header>
 
@@ -273,8 +273,8 @@ body {
 <p>GameHub is a portfolio project that combines a futuristic gaming interface with a containerized Node.js backend and a MySQL database — all runnable locally with one command. It demonstrates how frontend applications, backend APIs, container networking, reverse proxies, databases, tests and CI pipelines work together.</p>
 <p>The project is being evolved into a production-style application: automated CI/CD, infrastructure as code on AWS, monitoring, and Kubernetes (local kind cluster + Argo CD).</p>
 <blockquote><p><strong>Status — Phase 7 complete (2026-10-19):</strong> tested, CI'd, game-y, playable, <strong>live on AWS</strong>, observable, runnable on Kubernetes — and now hardened. 84 automated tests, a Cognito sign-in gate with <strong>working account deletion</strong> (GDPR art. 17, in the app rather than in a policy document), a bilingual privacy notice, an SBOM + image scanning in CI, and deploys that only run on a green CI for the exact commit. All described as CloudFormation and deployed by keyless GitHub OIDC.</p></blockquote>
-<p><strong>Live demo:</strong> <a href="https://d2qf9zxehny6bk.cloudfront.net">https://d2qf9zxehny6bk.cloudfront.net</a> — create an account (email confirmation), sign in, and play. The landing page is public; the catalogue and the games require a signed-in player.</p>
-<p><strong>Documentation:</strong> the step-by-step write-up, the ADRs and the runbook are published as a small static site at <strong><a href="https://d2qf9zxehny6bk.cloudfront.net/learn/">https://d2qf9zxehny6bk.cloudfront.net/learn/</a></strong>, with the whole guide as a printable PDF, and every claim in it traceable to a commit and a CI run.</p>
+<p><strong>Live demo:</strong> <a href="https://gamehub.worldofvpc.online">https://gamehub.worldofvpc.online</a> — create an account (email confirmation), sign in, and play. The landing page is public; the catalogue and the games require a signed-in player.</p>
+<p><strong>Documentation:</strong> the step-by-step write-up, the ADRs and the runbook are published as a small static site at <strong><a href="https://gamehub.worldofvpc.online/learn/">https://gamehub.worldofvpc.online/learn/</a></strong>, with the whole guide as a printable PDF, and every claim in it traceable to a commit and a CI run.</p>
 <hr />
 <h2 id="project-status">📌 Project Status</h2>
 <p><strong>Current phase:</strong> Phase 8 — /learn documentation site, PDF &amp; load test ✅ (see <a href="docs/step-8-learn-site.md"><code>docs/step-8-learn-site.md</code></a> and <a href="docs/load-test.md"><code>docs/load-test.md</code></a>)</p>
@@ -296,7 +296,7 @@ body {
 <h3 id="completed-phase-7-security-hardening-gdpr">✅ Completed (Phase 7 — security hardening &amp; GDPR)</h3>
 <ul><li><strong>Erasure that is implemented, not promised</strong>: <code>DELETE /api/me</code> deletes the player's rows <strong>and</strong> their Cognito identity in one action from the <a href="frontend/profile.html">account page</a>. A partial result is reported as a partial result (<code>502</code>), never as success</li><li><strong>The account page is the GDPR surface</strong>: it <em>is</em> the access/portability answer (identity + every stored row, copyable as JSON) and it carries the deletion control — one page, three of the four rights, no support email</li><li><strong>A bilingual privacy notice</strong> (<a href="frontend/privacy.html"><code>frontend/privacy.html</code></a>): a data inventory with purpose, legal basis and retention per item — including the 7-day access logs, which are personal data too</li><li><strong>One AWS call, signed by hand</strong>: account deletion needs <code>cognito-idp:AdminDeleteUser</code>, so the backend fetches IMDSv2 credentials and signs the request itself (SigV4, <code>node:crypto</code>) — no AWS SDK, no long-lived keys, and the signature is asserted field by field in the test suite</li><li><strong>Least privilege on the identity</strong>: the instance role's inline policy allows that <em>one</em> action on <em>one</em> user-pool ARN, not <code>CognitoPowerUser</code> on <code>*</code></li><li><strong>Data minimisation in the schema</strong>: one <code>personal_bests</code> row per <code>(player, game)</code> with <code>GREATEST()</code> on conflict — the best score, no play history — keyed by the Cognito <code>sub</code>, so the database holds no email address</li><li><strong>Migrations with a ledger</strong> (<code>scripts/migrate.sh</code>, <code>db/migrations/</code>): <code>db/init.sql</code> only runs on an empty volume, so schema changes ship as checksummed, idempotent migrations; a rewritten migration is refused</li><li><strong>Supply chain in CI</strong>: SPDX SBOM (syft) kept as an artifact, Trivy against the <strong>built image</strong> as well as the filesystem, <code>npm audit</code>, gitleaks over the full history, and Dependabot for npm, Actions and base images</li><li><strong>Deploys are CI-gated</strong>: the deploy workflow runs on a <em>successful CI run for the exact commit</em> (never a later, untested tip of <code>main</code>) and finishes with a post-deploy smoke test against the public URL — homepage markup, all 12 catalogue entries, game details, and a <code>401</code> from an unauthenticated <code>/api/me</code></li></ul>
 <h3 id="completed-phase-8-learn-documentation-site-pdf-load-test">✅ Completed (Phase 8 — /learn documentation site, PDF, load test)</h3>
-<ul><li><strong>A documentation site generated from the repository</strong>: <a href="scripts/build-learn.js"><code>scripts/build-learn.js</code></a> (dependency-free, Node built-ins only) renders <code>README.md</code> and every <code>docs/*.md</code> into <code>learn/</code> — a landing page, one page per document, a print guide, and a hand-written Markdown renderer with GitHub-style table support</li><li><strong>Published with the app</strong>: <code>build-frontend.sh</code> copies <code>learn/</code> into the deployable artifact, so the <em>same</em> CloudFront distribution serves the guide at <strong><code>/learn/</code></strong> — no second bucket, no second CDN, and no chance of the docs being deleted by the root sync. <code>/learn/</code> and <code>/learn</code> are resolved by a twelve-line CloudFront Function rather than by a folder object in the bucket (ADR-017) — before it existed, <code>/learn/</code> answered 200 with the <em>game hub's</em> home page</li><li><strong>A downloadable PDF</strong>: <code>scripts/build-pdf.sh</code> prints the print-optimised <code>learn/guide.html</code> through the browser already on the machine (A4 <code>@page</code> CSS), producing <code>learn/gamehub-guide.pdf</code> for offline reading</li><li><strong>A CI drift check</strong>: the generated site is committed, so the <code>manifests</code> job regenerates it and fails on any diff, and asserts that every document has a page — a generated artifact that is never checked is an artifact that goes stale</li><li><strong>A load test with a real report</strong>: <a href="scripts/load-test.js"><code>scripts/load-test.js</code></a> (dependency-free, committed) drives a weighted mix of static, API and probe traffic; <a href="docs/load-test.md"><code>docs/load-test.md</code></a> records the measured numbers for a single <code>t3.micro</code> — including a deliberately pushed run, what the alarms did, and an explicit list of what the test does <strong>not</strong> prove</li><li><strong>Erasure verified by a script, not by hand</strong>: <code>scripts/verify-gdpr.sh</code> creates a real Cognito user, stores a score, deletes the account through the public API, and asserts that both the row and the identity are gone — cleaning up after itself even when it fails</li><li><strong>Architecture decisions in one file</strong>: <a href="docs/decisions.md"><code>docs/decisions.md</code></a> — 17 decisions in context / decision / consequences / rejected form, each one stating what it costs</li></ul>
+<ul><li><strong>A documentation site generated from the repository</strong>: <a href="scripts/build-learn.js"><code>scripts/build-learn.js</code></a> (dependency-free, Node built-ins only) renders <code>README.md</code> and every <code>docs/*.md</code> into <code>learn/</code> — a landing page, one page per document, a print guide, and a hand-written Markdown renderer with GitHub-style table support</li><li><strong>Published with the app</strong>: <code>build-frontend.sh</code> copies <code>learn/</code> into the deployable artifact, so the <em>same</em> CloudFront distribution serves the guide at <strong><code>/learn/</code></strong> — no second bucket, no second CDN, and no chance of the docs being deleted by the root sync. <code>/learn/</code> and <code>/learn</code> are resolved by a twelve-line CloudFront Function rather than by a folder object in the bucket (ADR-017) — before it existed, <code>/learn/</code> answered 200 with the <em>game hub's</em> home page</li><li><strong>A downloadable PDF</strong>: <code>scripts/build-pdf.sh</code> prints the print-optimised <code>learn/guide.html</code> through the browser already on the machine (A4 <code>@page</code> CSS), producing <code>learn/gamehub-guide.pdf</code> for offline reading</li><li><strong>A CI drift check</strong>: the generated site is committed, so the <code>manifests</code> job regenerates it and fails on any diff, and asserts that every document has a page — a generated artifact that is never checked is an artifact that goes stale</li><li><strong>A load test with a real report</strong>: <a href="scripts/load-test.js"><code>scripts/load-test.js</code></a> (dependency-free, committed) drives a weighted mix of static, API and probe traffic; <a href="docs/load-test.md"><code>docs/load-test.md</code></a> records the measured numbers for a single <code>t3.micro</code> — including a deliberately pushed run, what the alarms did, and an explicit list of what the test does <strong>not</strong> prove</li><li><strong>Erasure verified by a script, not by hand</strong>: <code>scripts/verify-gdpr.sh</code> creates a real Cognito user, stores a score, deletes the account through the public API, and asserts that both the row and the identity are gone — cleaning up after itself even when it fails</li><li><strong>Architecture decisions in one file</strong>: <a href="docs/decisions.md"><code>docs/decisions.md</code></a> — 18 decisions in context / decision / consequences / rejected form, each one stating what it costs</li></ul>
 <h3 id="next-deliberately-not-started">🚧 Next (deliberately not started)</h3>
 <ul><li>A custom domain in front of CloudFront (certificate + DNS record; the distribution already exists)</li><li>Moving the database to RDS (multi-AZ, automated backups, managed patching) — the cost/ops trade-off <code>docs/decisions.md</code> ADR-002 records</li></ul>
 <hr />
@@ -460,20 +460,32 @@ make argocd-up   # Argo CD takes over from Git: Synced + Healthy</code></pre>
 <p>The cluster publishes the app on <strong>http://localhost:8081</strong> so it can run next to the Compose stack on 8080. <code>make kind-down</code> deletes the cluster; the Docker images stay. Everything about it — including what it does <em>not</em> promise — is in <a href="docs/step-6-kubernetes-gitops.md"><code>docs/step-6-kubernetes-gitops.md</code></a>.</p>
 <hr />
 <h2 id="deploy-to-aws">☁️ Deploy to AWS</h2>
-<p>Everything is CloudFormation in <a href="infra/"><code>infra/</code></a> — five small stacks, each one a single command. Stack outputs feed the next stack, so there is no spreadsheet of ids to copy by hand.</p>
+<p>Everything is CloudFormation in <a href="infra/"><code>infra/</code></a> — six small stacks, each one a single command. Stack outputs feed the next stack, so there is no spreadsheet of ids to copy by hand.</p>
 <pre><code class="language-bash">export AWS_REGION=eu-central-1
+export ZONE_ID=&lt;your route 53 hosted zone id&gt;   # aws route53 list-hosted-zones
 
 # 1. Cognito user pool + app client
 aws cloudformation deploy --region &quot;$AWS_REGION&quot; \
   --stack-name gamehub-cognito --template-file infra/cognito.yaml \
   --parameter-overrides Stage=prod
 
-# 2. S3 + CloudFront (deployed first without an API origin)
+# 2. Certificate for the custom domain. CloudFront only accepts certificates
+#    from us-east-1, hence the separate stack and the separate region. DNS
+#    validation happens inside this stack — there is nothing to click.
+aws cloudformation deploy --region us-east-1 \
+  --stack-name gamehub-dns --template-file infra/dns.yaml \
+  --parameter-overrides DomainName=gamehub.worldofvpc.online HostedZoneId=&quot;$ZONE_ID&quot;
+
+# 3. S3 + CloudFront (deployed first without an API origin)
 aws cloudformation deploy --region &quot;$AWS_REGION&quot; \
   --stack-name gamehub-site --template-file infra/site.yaml \
-  --parameter-overrides Stage=prod
+  --parameter-overrides \
+    Stage=prod \
+    CustomDomain=gamehub.worldofvpc.online \
+    CertificateArn=&lt;gamehub-dns CertificateArn output&gt; \
+    HostedZoneId=&quot;$ZONE_ID&quot;
 
-# 3. EC2 host running the compose stack (needs the CloudFront domain)
+# 4. EC2 host running the compose stack (needs the CloudFront domain)
 aws cloudformation deploy --region &quot;$AWS_REGION&quot; \
   --stack-name gamehub-backend --template-file infra/backend.yaml \
   --parameter-overrides \
@@ -483,14 +495,22 @@ aws cloudformation deploy --region &quot;$AWS_REGION&quot; \
     SiteOrigin=&lt;https://cloudfront domain&gt; \
     DbPassword=&lt;16+ chars&gt; RootDbPassword=&lt;16+ chars&gt;
 
-# 4. Re-deploy the site stack with the API origin attached, then publish
+# 5. Re-deploy the site stack with the API origin attached, then publish.
+#    Repeat every parameter: CloudFormation silently uses the defaults for
+#    anything you leave out, and the defaults here would strip the custom
+#    domain back off.
 aws cloudformation deploy --region &quot;$AWS_REGION&quot; \
   --stack-name gamehub-site --template-file infra/site.yaml \
-  --parameter-overrides Stage=prod BackendOriginDomain=&lt;ec2 public dns&gt;
+  --parameter-overrides \
+    Stage=prod \
+    BackendOriginDomain=&lt;ec2 public dns&gt; \
+    CustomDomain=gamehub.worldofvpc.online \
+    CertificateArn=&lt;gamehub-dns CertificateArn output&gt; \
+    HostedZoneId=&quot;$ZONE_ID&quot;
 
 AWS_REGION=$AWS_REGION ./scripts/deploy-frontend.sh
 
-# 5. Observability: log groups + retention, metrics from logs, the synthetic
+# 6. Observability: log groups + retention, metrics from logs, the synthetic
 #    check, eight alarms and the dashboard. AlarmEmail is optional — without it
 #    the SNS topic is still created and can be subscribed later (see the
 #    TopicArn output), it just has no subscriber yet.
@@ -500,7 +520,7 @@ aws cloudformation deploy --region &quot;$AWS_REGION&quot; \
   --parameter-overrides \
     Stage=prod \
     InstanceId=&lt;ec2 instance id&gt; \
-    SiteUrl=&lt;https://cloudfront domain&gt; \
+    SiteUrl=https://gamehub.worldofvpc.online \
     AlarmEmail=&lt;you@example.com&gt;</code></pre>
 <p>Deploy the observability stack <strong>before</strong> the host's CloudWatch agent writes its first log line: the template owns the log groups so their retention is set, and an agent-created group would make that resource fail with <code>AlreadyExists</code>.</p>
 <p>For continuous deployment, deploy the fourth stack (<code>infra/github-oidc.yaml</code>) once, then set these GitHub repository variables and push to <code>main</code> — the <a href=".github/workflows/deploy.yml">deploy workflow</a> does the rest through OIDC, with no AWS keys stored anywhere:</p>
@@ -690,7 +710,7 @@ docker-compose down</code></pre>
 
     <section class="doc md" id="doc-step-7-security-gdpr">
 <h1 id="step-7-security-hardening-gdpr-2026-10-19">Step 7 — Security hardening &amp; GDPR ✅ (2026-10-19)</h1>
-<blockquote><p><strong>Verified by:</strong> the CI job on this commit (51 backend tests, including a real RSA-signed JWT verified against a live JWKS and a hand-rolled SigV4 <code>AdminDeleteUser</code> call captured and asserted field by field against a local admin endpoint), a migration runner applying for real against MySQL 8.4 in CI <strong>and in production</strong> (the deploy log shows <code>0 already applied, 1 applied now</code> on the live database), and a live end-to-end erasure run by <a href="../scripts/verify-gdpr.sh"><code>scripts/verify-gdpr.sh</code></a> against <code>https://d2qf9zxehny6bk.cloudfront.net</code>: sign up → confirm → obtain an ID token → <code>POST /api/scores</code> (201) → <code>GET /api/scores/me</code> (1 row) → <code>DELETE /api/me</code> (<strong>204</strong>) → 0 rows remain <strong>and</strong> <code>admin-get-user</code> returns <code>UserNotFoundException</code>. That run is also what found a real production bug (item 13 below), which is the honest reason it is a script and not a checklist.</p></blockquote>
+<blockquote><p><strong>Verified by:</strong> the CI job on this commit (51 backend tests, including a real RSA-signed JWT verified against a live JWKS and a hand-rolled SigV4 <code>AdminDeleteUser</code> call captured and asserted field by field against a local admin endpoint), a migration runner applying for real against MySQL 8.4 in CI <strong>and in production</strong> (the deploy log shows <code>0 already applied, 1 applied now</code> on the live database), and a live end-to-end erasure run by <a href="../scripts/verify-gdpr.sh"><code>scripts/verify-gdpr.sh</code></a> against <code>https://d2qf9zxehny6bk.cloudfront.net</code> (the distribution's name, the canonical name at the time; the site also answers on <code>gamehub.worldofvpc.online</code> — ADR-018): sign up → confirm → obtain an ID token → <code>POST /api/scores</code> (201) → <code>GET /api/scores/me</code> (1 row) → <code>DELETE /api/me</code> (<strong>204</strong>) → 0 rows remain <strong>and</strong> <code>admin-get-user</code> returns <code>UserNotFoundException</code>. That run is also what found a real production bug (item 13 below), which is the honest reason it is a script and not a checklist.</p></blockquote>
 <h2 id="what-was-built">What was built</h2>
 <p>Security is not a feature you add at the end; it is a set of claims that are either true or false. This step is about making each claim checkable in the repository.</p>
 <div class="table-wrap"><table><thead><tr><th>Piece</th><th>Implementation</th><th>Why not the alternative</th></tr></thead><tbody><tr><td><strong>No AWS SDK on the host</strong> (<code>backend/cognito.js</code>)</td><td>~120 lines: IMDSv2 credential fetch + SigV4 request signing for the single API call the app makes to AWS (<code>AdminDeleteUser</code>)</td><td><em>Pulling in <code>@aws-sdk/client-cognito-identity-provider</code></em> → tens of megabytes and a credential-provider chain to debug, to send one <code>POST</code>; the signing algorithm is the thing worth understanding</td></tr><tr><td><strong>Credentials</strong></td><td>IMDSv2 only: <code>PUT /latest/api/token</code>, then every metadata <code>GET</code> carries <code>X-aws-ec2-metadata-token</code></td><td><em>IMDSv1</em> → any SSRF in any container on the host becomes an instance-role theft; <em>long-lived access keys in <code>.env</code></em> → a key on disk to rotate, leak and explain</td></tr><tr><td><strong>Permission</strong></td><td>An inline IAM policy on the instance role, scoped to <strong>one</strong> user-pool ARN (<code>infra/backend.yaml</code>)</td><td><em><code>CognitoPowerUser</code>, or a <code>*</code> resource</em> → the app could delete users in any pool of any account it can reach; least privilege here is one ARN</td></tr><tr><td><strong>Score storage</strong></td><td>One row per <code>(user_sub, game)</code> with <code>score = GREATEST(score, VALUES(score))</code>, keyed by the Cognito <code>sub</code></td><td><em>A row per play</em> → a behavioural history the app never needs and therefore should not hold; <em>keying by email</em> → copying a personal identifier into a second system for no reason</td></tr><tr><td><strong>Erasure</strong> (<code>DELETE /api/me</code>)</td><td>Delete the DB rows <strong>first</strong>, then <code>AdminDeleteUser</code>; a Cognito failure answers <code>502</code> with a truthful message</td><td><em>Delete the identity first</em> → the user can no longer authenticate, so a failed row deletion is unretryable and the data is orphaned forever</td></tr><tr><td><strong>Rights built into the app</strong> (<code>frontend/profile.html</code>)</td><td>The account page <em>is</em> the access/portability answer (identity + every row, copyable as JSON) and the erasure control</td><td><em>An email address in a README</em> → a GDPR right you have to be asked for is a right you have implemented on paper only</td></tr><tr><td><strong>Notice</strong> (<code>frontend/privacy.html</code>)</td><td>Bilingual EN/DE notice: data inventory, purpose, legal basis, retention, processors, rights</td><td><em>A link to AWS's privacy page</em> → answers the wrong question; the notice must say what <strong>this</strong> service does</td></tr><tr><td><strong>Open mode</strong></td><td><code>/api/*</code> signed-in routes answer <code>501</code> when no Cognito pool is configured</td><td><em>Returning <code>200</code> with an empty dataset</em> → local development silently exercises a path production never takes; <em><code>401</code> everywhere</em> → a contributor cannot tell &quot;not configured&quot; from &quot;not allowed&quot;</td></tr><tr><td><strong>CI/CD</strong> (<code>.github/workflows/</code>)</td><td>Deploy runs only on a <strong>successful CI run for the exact commit</strong>, then smoke-tests the public URL; SBOM (syft), image scanning (Trivy), <code>npm audit</code>, Dependabot</td><td><em>Deploy on <code>push</code></em> → production can receive a commit that CI has not finished judging; <em>deploy and hope</em> → a deploy is not done when the command exits 0</td></tr><tr><td><strong>Schema</strong> (<code>db/migrations/</code>, <code>scripts/migrate.sh</code>)</td><td>A ledger (<code>schema_migrations</code>) with a checksum per file; a rewritten migration is refused</td><td><em><code>init.sql</code> alone</em> → it runs once, on an empty volume, and never again — which is fine locally and wrong in production</td></tr></tbody></table></div>
@@ -851,6 +871,13 @@ docker-compose down</code></pre>
 <p><strong>Decision.</strong> A CloudFront Function on the viewer request of the static cache behaviour appends <code>index.html</code> to a URI that ends in <code>/</code>, and treats an extensionless final segment as a directory so <code>/learn</code> works too. It returns <code>/api/*</code> unchanged, so the function is correct independently of which cache behaviour it is attached to. Its ten-to-twelve URI cases are exercised locally before it is published.</p>
 <p><strong>Consequences.</strong> <code>/learn/</code>, <code>/learn</code> and every deep link work; the bucket stays dumb; the cost is nil at this size (the CloudFront Functions free tier is two million requests a month against a few thousand here). The trade is one more piece of logic between the user and the object, so it fails open — an unmatched URI behaves exactly as it did before — and it is small enough to read in one sitting.</p>
 <p><strong>Rejected.</strong> Uploading the landing page <em>also</em> as the key <code>learn/</code> (S3 permits it, but <code>aws s3 sync --delete</code> does not know it is meant to exist, so it would be deleted and restored on every deploy — a one-second outage per release in exchange for saving twelve lines); linking to <code>/learn/index.html</code> everywhere (works, and the docs' own links do use explicit <code>.html</code>, but <code>/learn/</code> is the URL a person types or bookmarks, and a landing page that renders the wrong site is a bug however it was linked).</p>
+<hr />
+<h2 id="adr-018">ADR-018</h2>
+<p><strong>The site answers on a custom domain — and the CloudFront name keeps working</strong></p>
+<p><strong>Context.</strong> The site was reachable only at <code>d2qf9zxehny6bk.cloudfront.net</code>. The zone <code>worldofvpc.online</code> already existed with another project on the apex, so <code>gamehub.worldofvpc.online</code> was the obvious subdomain. The expected cost was breaking the CloudFront name: the distribution redirects HTTP to HTTPS, so if a custom certificate replaced the default one, the old address would fail at the TLS handshake and any link to it would simply break.</p>
+<p><strong>Decision.</strong> Serve <code>gamehub.worldofvpc.online</code>: an ACM certificate issued in us-east-1 by a small dedicated stack (<code>infra/dns.yaml</code>) and validated over DNS, an alias on the distribution, and IPv4/IPv6 alias records pointing at it. Prefer the custom name wherever a URL is written down — README, docs, the load-test commands and the deploy's smoke test — and treat the CloudFront name as an implementation detail.</p>
+<p><strong>Consequences.</strong> The expectation was wrong in a pleasant way, and it was measured rather than assumed: CloudFront chooses the certificate by SNI, so the alias gets the certificate for <code>gamehub.worldofvpc.online</code> while the distribution's own name keeps getting <code>*.cloudfront.net</code>. <strong>Both names answer 200</strong>, so no existing link breaks and the historical verification records stay exactly as they were written. The real cost is a third stack (in us-east-1, because CloudFront only accepts certificates from there), a hosted-zone id in the site stack, and the standing obligation to rename <em>everywhere at once</em> — a half-renamed project is worse than an unnamed one. Certificates are free; alias records are not charged for.</p>
+<p><strong>Rejected.</strong> A second distribution for the custom name (a duplicate of the whole configuration — cache behaviours, the directory-index function, the origin access control — to avoid one alias); email-validated certificates (a human has to click a link, and the failure mode is an expired certificate in production); and rewriting the historical records that name the CloudFront domain, which would have falsified evidence that was accurate when it was captured.</p>
     </section>
 
     <section class="doc md" id="doc-load-test">
@@ -863,7 +890,7 @@ docker-compose down</code></pre>
 <h2 id="the-client-s-view">The client's view</h2>
 <p>Run A is anonymous (the catalogue answers 401); Run B carries a real ID token, so <code>/api/games</code> reaches MySQL. Both: 2,000 requests, concurrency 20, keep-alive, one client.</p>
 <h3 id="run-a-anonymous-the-edge-and-the-gate">Run A — anonymous (the edge and the gate)</h3>
-<ul><li><strong>Target:</strong> <code>https://d2qf9zxehny6bk.cloudfront.net</code></li><li><strong>Duration:</strong> 19.17 s · <strong>Throughput:</strong> 104.32 req/s</li><li><strong>Responses as expected:</strong> 100 % · <strong>Unexpected:</strong> 0 · <strong>Connection errors:</strong> 0</li></ul>
+<ul><li><strong>Target:</strong> <code>https://d2qf9zxehny6bk.cloudfront.net</code> (the distribution's own name; the site's canonical name is <code>gamehub.worldofvpc.online</code>, and both are served — see ADR-018)</li><li><strong>Duration:</strong> 19.17 s · <strong>Throughput:</strong> 104.32 req/s</li><li><strong>Responses as expected:</strong> 100 % · <strong>Unexpected:</strong> 0 · <strong>Connection errors:</strong> 0</li></ul>
 <div class="table-wrap"><table><thead><tr><th>Latency</th><th>ms</th></tr></thead><tbody><tr><td>min</td><td>161.19</td></tr><tr><td>mean</td><td>190.78</td></tr><tr><td>p50</td><td>180.25</td></tr><tr><td>p90</td><td>193.81</td></tr><tr><td>p95</td><td>234.46</td></tr><tr><td>p99</td><td>348.87</td></tr><tr><td>max</td><td>1103.22</td></tr></tbody></table></div>
 <div class="table-wrap"><table><thead><tr><th>Endpoint</th><th>Requests</th><th>p50 (ms)</th><th>p95 (ms)</th><th>Expected</th><th>Unexpected</th></tr></thead><tbody><tr><td><code>/</code></td><td>1000</td><td>186.08</td><td>242.57</td><td>200</td><td>0</td></tr><tr><td><code>/api/games</code></td><td>600</td><td>174.52</td><td>193.52</td><td>401</td><td>0</td></tr><tr><td><code>/api/health</code></td><td>400</td><td>177.31</td><td>233.69</td><td>200</td><td>0</td></tr></tbody></table></div>
 <p>Status distribution: <code>{&quot;200&quot;: 1400, &quot;401&quot;: 600}</code>.</p>
@@ -896,7 +923,7 @@ docker-compose down</code></pre>
 <h2 id="cost">Cost</h2>
 <p>4,000 requests from CloudFront plus ~2,000 origin-bound requests and a few hundred kilobytes of transfer. CloudFront's free tier is 1 TB and 10 million requests per month; the instance is billed whether it is busy or idle. The marginal cost of this test was <strong>effectively zero</strong>, and nothing here approaches a paid tier.</p>
 <h2 id="reproduce-it">Reproduce it</h2>
-<pre><code class="language-bash">make load-test SITE_URL=https://d2qf9zxehny6bk.cloudfront.net REQUESTS=2000 CONCURRENCY=20
+<pre><code class="language-bash">make load-test SITE_URL=https://gamehub.worldofvpc.online REQUESTS=2000 CONCURRENCY=20
 
 # authenticated (the API then reaches MySQL); get an ID token first, e.g. with
 # scripts/verify-gdpr.sh's sign-in steps, then:
@@ -916,7 +943,10 @@ aws logs filter-log-events --log-group-name /gamehub/prod/nginx-access \
 <pre><code class="language-bash">export AWS_REGION=eu-central-1
 export INSTANCE_ID=$(aws ec2 describe-instances --region &quot;$AWS_REGION&quot; \
   --filters Name=tag:Name,Values=gamehub-prod* \
-  --query &quot;Reservations[].Instances[].InstanceId&quot; --output text)</code></pre>
+  --query &quot;Reservations[].Instances[].InstanceId&quot; --output text)
+# The site's canonical name. The distribution's own domain name also still
+# answers, with CloudFront's default certificate — see ADR-018.
+export SITE_URL=https://gamehub.worldofvpc.online</code></pre>
 <p>Run a command on the host (no keys, no SSH — IAM decides who may do this):</p>
 <pre><code class="language-bash">aws ssm send-command --region &quot;$AWS_REGION&quot; --instance-ids &quot;$INSTANCE_ID&quot; \
   --document-name AWS-RunShellScript \
@@ -930,8 +960,8 @@ export INSTANCE_ID=$(aws ec2 describe-instances --region &quot;$AWS_REGION&quot;
 <h2 id="1-gamehub-prod-synthetic-check-failed">1. <code>gamehub-prod-synthetic-check-failed</code></h2>
 <p><strong>Means:</strong> the external check could not get a <code>200</code> from the site or from <code>/api/health</code> within 10 seconds. This is the closest thing to &quot;users cannot use the site&quot;.</p>
 <p><strong>Confirm:</strong></p>
-<pre><code class="language-bash">curl -sS -o /dev/null -w '%{http_code} %{time_total}s\n' https://&lt;distribution&gt;/ 
-curl -sS -o /dev/null -w '%{http_code} %{time_total}s\n' https://&lt;distribution&gt;/api/health
+<pre><code class="language-bash">curl -sS -o /dev/null -w '%{http_code} %{time_total}s\n' $SITE_URL/ 
+curl -sS -o /dev/null -w '%{http_code} %{time_total}s\n' $SITE_URL/api/health
 aws lambda invoke --region &quot;$AWS_REGION&quot; \
   --function-name gamehub-prod-canary --log-type Tail /dev/stdout | tail -5</code></pre>
 <p><strong>Act:</strong></p>

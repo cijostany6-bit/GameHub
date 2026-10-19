@@ -7,7 +7,9 @@
 > **and in production** (the deploy log shows `0 already applied, 1 applied now`
 > on the live database), and a live end-to-end erasure run by
 > [`scripts/verify-gdpr.sh`](../scripts/verify-gdpr.sh) against
-> `https://d2qf9zxehny6bk.cloudfront.net`: sign up → confirm → obtain an ID token
+> `https://d2qf9zxehny6bk.cloudfront.net` (the distribution's name, the
+> canonical name at the time; the site also answers on
+> `gamehub.worldofvpc.online` — ADR-018): sign up → confirm → obtain an ID token
 > → `POST /api/scores` (201) → `GET /api/scores/me` (1 row) → `DELETE /api/me`
 > (**204**) → 0 rows remain **and** `admin-get-user` returns
 > `UserNotFoundException`. That run is also what found a real production bug
