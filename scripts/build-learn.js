@@ -58,6 +58,26 @@ function slugify(s) {
     .replace(/^-+|-+$/g, "");
 }
 
+/* Links between documents have to survive publication: on GitHub
+ * "docs/foo.md" is a file, on the site the same document is "foo.html".
+ * Only links that point at a document this site publishes are rewritten —
+ * links to source files (infra/*.yaml, scripts/*) are left alone, because a
+ * URL invented for something that was not published would be worse than a
+ * link that honestly only works in the repository. */
+function rewriteDocHref(href) {
+  const [pathPart, frag] = String(href).split("#");
+  const doc = /^(?:\.\/)?docs\/([^/]+)\.md$/i.exec(pathPart);
+  if (doc) return `${slugify(doc[1])}.html${frag ? "#" + frag : ""}`;
+  if (/^(?:\.\/)?README\.md$/i.test(pathPart)) {
+    return `readme.html${frag ? "#" + frag : ""}`;
+  }
+  // The app's own pages are published — at the root of the live site, not in
+  // this docs tree. Point at the deployed page rather than at a copy of it.
+  const appPage = /^(?:\.\/)?frontend\/([^/]+\.html)$/i.exec(pathPart);
+  if (appPage) return `${PROJECT.live}/${appPage[1]}${frag ? "#" + frag : ""}`;
+  return href;
+}
+
 function stripInline(s) {
   return String(s)
     .replace(/`([^`]*)`/g, "$1")
@@ -109,7 +129,7 @@ function inlineFromEscaped(text) {
       return renderImage(g.imgsrc, g.imgalt);
     }
     if (g.link !== undefined) {
-      return `<a href="${g.linkhref}">${inlineFromEscaped(g.linktext)}</a>`;
+      return `<a href="${rewriteDocHref(g.linkhref)}">${inlineFromEscaped(g.linktext)}</a>`;
     }
     if (g.auto !== undefined) {
       return `<a href="${g.autourl}">${g.autourl}</a>`;

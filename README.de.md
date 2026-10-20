@@ -36,11 +36,11 @@ der Katalog und die Spiele erfordern einen angemeldeten Spieler.
 Beides sind Aufnahmen der Live-Seite unter
 <https://gamehub.worldofvpc.online> — keine Mockups.
 
-**Dokumentation:** Die Schritt-für-Schritt-Dokumentation, die ADRs und das Runbook
-sind als statische Seite unter
-**<https://gamehub.worldofvpc.online/learn/>** veröffentlicht, das komplette
-Handbuch zusätzlich als druckbares PDF — jede Aussage darin ist auf einen Commit
-und einen CI-Lauf zurückführbar.
+**Dokumentation:** Die Schritt-für-Schritt-Dokumentation, die ADRs, das Runbook
+und ein [Glossar aller hier verwendeten Abkürzungen](docs/glossary.md) sind als
+statische Seite unter **<https://gamehub.worldofvpc.online/learn/>**
+veröffentlicht, das komplette Handbuch zusätzlich als druckbares PDF — jede
+Aussage darin ist auf einen Commit und einen CI-Lauf zurückführbar.
 
 ---
 

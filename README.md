@@ -36,10 +36,11 @@ catalogue and the games require a signed-in player.
 Both are captures of the live site at <https://gamehub.worldofvpc.online> —
 no mockups.
 
-**Documentation:** the step-by-step write-up, the ADRs and the runbook are
-published as a small static site at
-**<https://gamehub.worldofvpc.online/learn/>**, with the whole guide as a
-printable PDF, and every claim in it traceable to a commit and a CI run.
+**Documentation:** the step-by-step write-up, the ADRs, the runbook and a
+[glossary of every abbreviation used here](docs/glossary.md) are published as a
+small static site at **<https://gamehub.worldofvpc.online/learn/>**, with the
+whole guide as a printable PDF, and every claim in it traceable to a commit and
+a CI run.
 
 ---
 
