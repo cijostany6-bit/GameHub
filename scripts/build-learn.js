@@ -12,6 +12,9 @@
  *   learn/guide.html            all documents, print-optimised (→ PDF)
  *   learn/style.css             arcade theme, self-hosted fonts only
  *   learn/fonts/*               woff2 + OFL licences copied from frontend/
+ *   learn/screenshots/*         images the README references, copied from
+ *                               screenshots/ so the same markup renders on
+ *                               GitHub and in the published site
  *
  * The Markdown renderer is hand-written so the project keeps its
  * "zero runtime dependencies, zero third-party requests" posture.
@@ -25,6 +28,8 @@ const DOCS_DIR = path.join(ROOT, "docs");
 const OUT_DIR = path.join(ROOT, "learn");
 const FONT_SRC = path.join(ROOT, "frontend", "fonts");
 const FONT_DST = path.join(OUT_DIR, "fonts");
+const SHOT_SRC = path.join(ROOT, "screenshots");
+const SHOT_DST = path.join(OUT_DIR, "screenshots");
 
 const PROJECT = {
   title: "GameHub",
@@ -83,12 +88,16 @@ const INLINE_RE = new RegExp(
 /* Remote images (the README's shields.io/CI badges) are rendered as inert text
  * chips: the /learn site must make ZERO third-party requests — same GDPR
  * reasoning that made the app self-host its fonts in Phase 2. Local images are
- * emitted as real <img> tags. */
+ * emitted as real <img> tags.
+ *
+ * `src` and `alt` arrive already HTML-escaped from inlineFromEscaped(), so they
+ * go into the attributes as-is. Escaping them again turned a quote in alt text
+ * into `&amp;quot;` — visibly wrong to a screen reader. */
 function renderImage(src, alt) {
   if (/^https?:/i.test(src)) {
-    return `<span class="ext-img" title="${escapeHtml(src)}">${escapeHtml(alt)}</span>`;
+    return `<span class="ext-img" title="${src}">${alt}</span>`;
   }
-  return `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" loading="lazy" />`;
+  return `<img src="${src}" alt="${alt}" loading="lazy" />`;
 }
 
 /* Inline markdown for text that has ALREADY been HTML-escaped.
@@ -1326,6 +1335,22 @@ function copyFonts() {
   }
 }
 
+/* The README's screenshots live in a repo-root screenshots/ directory and are
+ * referenced with repository-relative paths, so the identical Markdown works
+ * on GitHub and here. Copying them into learn/ is what keeps those references
+ * valid in the published site — no rewritten URLs, no absolute paths (see
+ * ADR-017 for why the site never hard-codes where it is served from). */
+function copyScreenshots() {
+  if (!fs.existsSync(SHOT_SRC)) return;
+  fs.mkdirSync(SHOT_DST, { recursive: true });
+  for (const file of fs.readdirSync(SHOT_SRC).sort()) {
+    const src = path.join(SHOT_SRC, file);
+    if (!fs.statSync(src).isFile()) continue;
+    fs.copyFileSync(src, path.join(SHOT_DST, file));
+    written.push({ rel: path.join("screenshots", file), bytes: fs.statSync(src).size });
+  }
+}
+
 function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
@@ -1337,6 +1362,7 @@ function main() {
 
   writeFile("style.css", SITE_CSS);
   copyFonts();
+  copyScreenshots();
 
   for (const doc of docs) {
     writeFile(`${doc.slug}.html`, documentPage(doc, docs));

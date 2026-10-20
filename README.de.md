@@ -27,6 +27,15 @@ Das Projekt wird zu einer Anwendung im Produktionsstil weiterentwickelt: automat
 (E-Mail-Bestätigung), melde dich an und spiele. Die Landing Page ist öffentlich;
 der Katalog und die Spiele erfordern einen angemeldeten Spieler.
 
+### Screenshots
+
+| Die Landing Page (öffentlich) | Ein Spiel aus dem Katalog |
+|---|---|
+| ![Die GameHub-Landing-Page: „ENTER THE ARENA“ über einem animierten Sternenfeld](screenshots/home.png) | ![Cyber Strike, eines von zwölf spielbaren Spielen, mit Punktestand, Bestwert und Steuerung](screenshots/game.png) |
+
+Beides sind Aufnahmen der Live-Seite unter
+<https://gamehub.worldofvpc.online> — keine Mockups.
+
 **Dokumentation:** Die Schritt-für-Schritt-Dokumentation, die ADRs und das Runbook
 sind als statische Seite unter
 **<https://gamehub.worldofvpc.online/learn/>** veröffentlicht, das komplette
