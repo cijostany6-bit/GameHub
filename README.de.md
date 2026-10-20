@@ -42,6 +42,48 @@ statische Seite unter **<https://gamehub.worldofvpc.online/learn/>**
 veröffentlicht, das komplette Handbuch zusätzlich als druckbares PDF — jede
 Aussage darin ist auf einen Commit und einen CI-Lauf zurückführbar.
 
+### 🔗 Alle Seiten auf einen Blick
+
+Alle 25 veröffentlichten URLs, jede live und geprüft. (Die Repository-Beschreibung
+fasst nur eine Zeile, deshalb steht das vollständige Verzeichnis hier.)
+
+**Die Anwendung** — Katalog, Spiele und Kontoseite erfordern einen angemeldeten
+Spieler (Cognito); Startseite und Datenschutzhinweis nicht.
+
+| Seite | URL | Was sie ist |
+|---|---|---|
+| Startseite | <https://gamehub.worldofvpc.online/> | öffentliche Hero-Seite mit animiertem Hintergrund |
+| Katalog | <https://gamehub.worldofvpc.online/games.html> | 12 Spiele, 6 Engines, Kategoriefilter |
+| Spielen | <https://gamehub.worldofvpc.online/play.html> | Canvas, HUD, Punktestand und persönliche Bestleistung |
+| Anmelden | <https://gamehub.worldofvpc.online/signin.html> | Cognito-Anmeldung |
+| Registrieren | <https://gamehub.worldofvpc.online/signup.html> | Registrierung mit E-Mail-Bestätigung |
+| Konto | <https://gamehub.worldofvpc.online/profile.html> | Bestleistungen und Löschung nach DSGVO Art. 17 |
+| Datenschutz | <https://gamehub.worldofvpc.online/privacy.html> | zweisprachiger Hinweis nach DSGVO Art. 13 |
+
+**Die Dokumentationsseite** — erzeugt aus dieser README und `docs/*.md` durch
+`scripts/build-learn.js`:
+
+| Seite | URL | Was sie ist |
+|---|---|---|
+| Einstieg | <https://gamehub.worldofvpc.online/learn/> | Verzeichnis aller Seiten |
+| Überblick | <https://gamehub.worldofvpc.online/learn/readme.html> | diese README als Webseite |
+| Glossar | <https://gamehub.worldofvpc.online/learn/glossary.html> | jede Abkürzung, erklärt und verortet |
+| Entscheidungen | <https://gamehub.worldofvpc.online/learn/decisions.html> | 18 Architektur-Entscheidungen (ADRs) |
+| Runbook | <https://gamehub.worldofvpc.online/learn/runbook.html> | was zu tun ist, wenn etwas ausfällt |
+| SLOs | <https://gamehub.worldofvpc.online/learn/slo.html> | die Ziele, an denen die Alarme hängen |
+| Lasttest | <https://gamehub.worldofvpc.online/learn/load-test.html> | gemessene `t3.micro`-Ergebnisse |
+| Schritt 0 | <https://gamehub.worldofvpc.online/learn/step-0-reproducible-foundation.html> | reproduzierbares lokales Fundament |
+| Schritt 1 | <https://gamehub.worldofvpc.online/learn/step-1-tests-and-ci.html> | automatisierte Tests + GitHub-Actions-CI |
+| Schritt 2 | <https://gamehub.worldofvpc.online/learn/step-2-gamey-ui.html> | Live-Hintergrund + selbst gehostete Arcade-Fonts |
+| Schritt 3 | <https://gamehub.worldofvpc.online/learn/step-3-real-games.html> | echte spielbare Spiele |
+| Schritt 4 | <https://gamehub.worldofvpc.online/learn/step-4-auth-and-live.html> | echte Authentifizierung + live auf AWS |
+| Schritt 5 | <https://gamehub.worldofvpc.online/learn/step-5-observability.html> | Observability |
+| Schritt 6 | <https://gamehub.worldofvpc.online/learn/step-6-kubernetes-gitops.html> | lokales Kubernetes (kind) + Argo CD |
+| Schritt 7 | <https://gamehub.worldofvpc.online/learn/step-7-security-gdpr.html> | Security-Härtung & DSGVO |
+| Schritt 8 | <https://gamehub.worldofvpc.online/learn/step-8-learn-site.html> | diese Dokumentationsseite + PDF-Export |
+| Gesamtes Handbuch | <https://gamehub.worldofvpc.online/learn/guide.html> | alle Dokumente in Lesereihenfolge |
+| PDF | <https://gamehub.worldofvpc.online/learn/gamehub-guide.pdf> | 79-seitige Druckversion |
+
 ---
 
 ## 📌 Projektstatus

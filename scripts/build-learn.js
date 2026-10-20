@@ -66,15 +66,37 @@ function slugify(s) {
  * link that honestly only works in the repository. */
 function rewriteDocHref(href) {
   const [pathPart, frag] = String(href).split("#");
+  const f = frag ? "#" + frag : "";
+
   const doc = /^(?:\.\/)?docs\/([^/]+)\.md$/i.exec(pathPart);
-  if (doc) return `${slugify(doc[1])}.html${frag ? "#" + frag : ""}`;
-  if (/^(?:\.\/)?README\.md$/i.test(pathPart)) {
-    return `readme.html${frag ? "#" + frag : ""}`;
+  if (doc) return `${slugify(doc[1])}.html${f}`;
+  if (/^(?:\.\/)?README\.md$/i.test(pathPart)) return `readme.html${f}`;
+
+  // A document may link to a sibling by bare filename ("runbook.md"), which
+  // GitHub resolves inside docs/. Publish the equivalent page instead.
+  const sibling = /^([^/]+\.md)$/i.exec(pathPart);
+  if (sibling && fs.existsSync(path.join(DOCS_DIR, sibling[1]))) {
+    return `${slugify(sibling[1].replace(/\.md$/i, ""))}.html${f}`;
   }
+
   // The app's own pages are published — at the root of the live site, not in
   // this docs tree. Point at the deployed page rather than at a copy of it.
   const appPage = /^(?:\.\/)?frontend\/([^/]+\.html)$/i.exec(pathPart);
-  if (appPage) return `${PROJECT.live}/${appPage[1]}${frag ? "#" + frag : ""}`;
+  if (appPage) return `${PROJECT.live}/${appPage[1]}${f}`;
+
+  // Everything else that is a repository path (infra/, scripts/, LICENSE, a
+  // workflow) has no page on this site. GitHub is where it is published, so
+  // send the reader there rather than to a 404.
+  const external = /^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith("#") || href.startsWith("/");
+  const siteAsset = /\.(html|pdf|css|png|jpe?g|svg|woff2?)$/i.test(pathPart)
+    || /^(fonts|screenshots)\//.test(pathPart);
+  if (!external && !siteAsset) {
+    const clean = pathPart.replace(/^(\.\.\/)+/, "").replace(/^\.\//, "");
+    if (clean) {
+      const kind = clean.endsWith("/") ? "tree" : "blob";
+      return `${PROJECT.repo}/${kind}/main/${clean}${f}`;
+    }
+  }
   return href;
 }
 
@@ -157,7 +179,7 @@ function inline(raw) {
 
   let text = String(raw).replace(/`([^`]+)`/g, (_m, code) => ph({ code }));
   text = text.replace(BADGE_RE, (_m, alt, src, href) =>
-    ph({ html: `<a href="${escapeHtml(href)}">${renderImage(src, alt)}</a>` })
+    ph({ html: `<a href="${escapeHtml(rewriteDocHref(href))}">${renderImage(src, alt)}</a>` })
   );
   text = escapeHtml(text);
   text = inlineFromEscaped(text);
