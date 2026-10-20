@@ -27,6 +27,15 @@ The project is being evolved into a production-style application: automated CI/C
 (email confirmation), sign in, and play. The landing page is public; the
 catalogue and the games require a signed-in player.
 
+### Screenshots
+
+| The landing page (public) | A game from the catalogue |
+|---|---|
+| ![The GameHub landing page: "ENTER THE ARENA" over an animated starfield](screenshots/home.png) | ![Cyber Strike, one of twelve playable games, showing score, personal best and controls](screenshots/game.png) |
+
+Both are captures of the live site at <https://gamehub.worldofvpc.online> —
+no mockups.
+
 **Documentation:** the step-by-step write-up, the ADRs and the runbook are
 published as a small static site at
 **<https://gamehub.worldofvpc.online/learn/>**, with the whole guide as a

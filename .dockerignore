@@ -12,8 +12,11 @@ docs/
 # learn/ is NOT ignored: production uploads frontend/ + learn/ to the same
 # bucket, so the image must contain both for /learn/ to work locally and in
 # kind, exactly as it does behind CloudFront.
+# screenshots/ is ignored: the README's images are copied into learn/ by the
+# site generator, so the image gets them through learn/ (and not twice).
 tests/
 scripts/
 db/
+screenshots/
 docker-compose.yml
 Makefile
