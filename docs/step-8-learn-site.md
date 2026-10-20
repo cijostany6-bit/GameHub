@@ -3,7 +3,7 @@
 > **Verified by:** `node scripts/build-learn.js` run twice in a row (identical
 > output, no drift) · one page per source document plus a landing page and the
 > print guide (14 documents + README → 17 pages) · `./scripts/build-pdf.sh`
-> rendering `learn/gamehub-guide.pdf` (77 A4 pages) through headless Chrome · a
+> rendering `learn/gamehub-guide.pdf` (79 A4 pages) through headless Chrome · a
 > spot-check that the GitHub-style tables in the step notes render as real
 > tables, not pipe soup · the CI drift check detecting a stale site when a
 > one-line README edit is not regenerated, and passing on the committed
